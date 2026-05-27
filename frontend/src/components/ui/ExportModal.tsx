@@ -1,0 +1,271 @@
+import { useState } from 'react'
+import { getApiBase, getFactoryId } from '@/config/factories'
+import { useAppDispatch } from '@/app/hooks'
+import { addToast } from '@/features/ui/uiSlice'
+import { Icon } from '@/components/common/Icons'
+import Modal from '@/components/ui/Modal'
+
+export interface ExportCtx {
+  tab: string
+  dateFrom: string
+  dateTo: string
+  line?: string
+  ry?: string
+  device?: string
+}
+
+type ExportLang = 'vi' | 'en' | 'zh' | 'my'
+
+const EXPORT_LANGS: { id: ExportLang; label: string }[] = [
+  { id: 'vi', label: 'Tiếng Việt' },
+  { id: 'en', label: 'English' },
+  { id: 'zh', label: '中文' },
+  { id: 'my', label: 'မြန်မာ' },
+]
+
+interface LangPack {
+  reportTitle: string; dataSheet: string; statsSheet: string
+  summarySection: string; hourlySection: string; lineSection: string
+  totalRecords: string; generatedAt: string
+  hour: string; count: string; line: string
+  goodLabel: string; badLabel: string; totalLabel: string
+  cols: [string,string,string,string,string,string,string,string,string,string]
+  modalTitle: string; cancelBtn: string; generateBtn: string
+  langLabel: string; dateRangeLabel: string
+  infoNote: (data: string, stats: string) => string
+  generating: string
+}
+
+const L10N: Record<ExportLang, LangPack> = {
+  vi: {
+    reportTitle: 'Báo cáo hệ thống quét LYG',
+    dataSheet: 'Dữ liệu', statsSheet: 'Thống kê',
+    summarySection: 'Tổng hợp', hourlySection: 'Sản lượng theo giờ', lineSection: 'Theo dây chuyền',
+    totalRecords: 'Tổng bản ghi', generatedAt: 'Thời gian xuất',
+    hour: 'Giờ', count: 'Số lượng', line: 'Dây chuyền',
+    goodLabel: 'ĐẠT', badLabel: 'KHÔNG ĐẠT', totalLabel: 'Tổng',
+    cols: ['Ngày / Giờ','Dây chuyền','Mã sản phẩm','Cỡ giày','PO','Số lượng','UPC','RFID','Địa chỉ IP','Kết quả'],
+    modalTitle: 'Xuất báo cáo', cancelBtn: 'Hủy', generateBtn: 'Tạo file',
+    langLabel: 'Ngôn ngữ', dateRangeLabel: 'Khoảng dữ liệu',
+    infoNote: (data, stats) => `Excel tạo nhiều sheet ${data} (mỗi sheet tối đa 10,000 bản ghi) + 1 sheet ${stats} (phân tích theo giờ & dây chuyền).`,
+    generating: 'Đang tạo XLSX…',
+  },
+  en: {
+    reportTitle: 'LYG Scan Platform Report',
+    dataSheet: 'Data', statsSheet: 'Statistics',
+    summarySection: 'Summary', hourlySection: 'Hourly Breakdown', lineSection: 'Line Breakdown',
+    totalRecords: 'Total Records', generatedAt: 'Generated At',
+    hour: 'Hour', count: 'Count', line: 'Line',
+    goodLabel: 'GOOD', badLabel: 'NOT GOOD', totalLabel: 'Total',
+    cols: ['Date / Time','Line','Article (RY)','Size','PO','Qty','UPC','RFID','IP Address','Result'],
+    modalTitle: 'Export Report', cancelBtn: 'Cancel', generateBtn: 'Generate',
+    langLabel: 'Language', dateRangeLabel: 'Date range',
+    infoNote: (data, stats) => `Excel splits ${data} into sheets of 10,000 rows each + 1 ${stats} sheet (hourly & line breakdown).`,
+    generating: 'Generating XLSX…',
+  },
+  zh: {
+    reportTitle: 'LYG 扫描平台报告',
+    dataSheet: '数据', statsSheet: '统计',
+    summarySection: '摘要', hourlySection: '每小时产量', lineSection: '按生产线统计',
+    totalRecords: '记录总数', generatedAt: '生成时间',
+    hour: '小时', count: '数量', line: '生产线',
+    goodLabel: '合格', badLabel: '不合格', totalLabel: '总计',
+    cols: ['日期/时间','生产线','商品编号','尺码','采购订单','数量','UPC','RFID','IP地址','结果'],
+    modalTitle: '导出报告', cancelBtn: '取消', generateBtn: '生成',
+    langLabel: '语言', dateRangeLabel: '数据范围',
+    infoNote: (data, stats) => `Excel 按每表 10,000 行拆分 ${data}，自动创建多个工作表 + 1 个 ${stats} 工作表。`,
+    generating: '正在生成 XLSX…',
+  },
+  my: {
+    reportTitle: 'LYG စကင်ဖတ်မှတ်တမ်း',
+    dataSheet: 'ဒေတာ', statsSheet: 'စာရင်းဇယား',
+    summarySection: 'အကျဉ်းချုပ်', hourlySection: 'နာရီအလိုက် ထုတ်လုပ်မှု', lineSection: 'လိုင်းအလိုက်',
+    totalRecords: 'မှတ်တမ်းစုစုပေါင်း', generatedAt: 'ထုတ်လုပ်ချိန်',
+    hour: 'နာရီ', count: 'အရေအတွက်', line: 'လိုင်း',
+    goodLabel: 'ကောင်းသည်', badLabel: 'ကောင်းမသည်', totalLabel: 'စုစုပေါင်း',
+    cols: ['ရက်စွဲ / အချိန်','လိုင်း','ကုန်ပစ္စည်းကုဒ်','အရွယ်','PO','အရေအတွက်','UPC','RFID','IP လိပ်စာ','ရလဒ်'],
+    modalTitle: 'အစီရင်ခံစာ ထုတ်ယူမည်', cancelBtn: 'မလုပ်တော့', generateBtn: 'ဖိုင်ထုတ်မည်',
+    langLabel: 'ဘာသာစကား', dateRangeLabel: 'ရက်စွဲအပိုင်းအခြား',
+    infoNote: (data, stats) => `Excel တွင် ${data} sheet တစ်ခုလျှင် ၁၀,၀၀၀ စီ ခွဲ၍ အလိုအလျောက် sheet များ ထုတ်သည် + ${stats} sheet ၁ ခု ပါဝင်သည်။`,
+    generating: 'XLSX ဖိုင် ထုတ်နေသည်…',
+  },
+}
+
+// Hộp thoại xuất báo cáo XLSX với 2 sheet: dữ liệu chi tiết + thống kê theo giờ/dây chuyền
+// Nhận bộ lọc hiện tại (tab, ngày, line...) từ AppShell/VisionReportPage, cho chọn ngôn ngữ xuất (VI/EN/ZH/MY)
+export default function ExportModal({ ctx, onClose }: { ctx: ExportCtx; onClose: () => void }) {
+  const [lang, setLang] = useState<ExportLang>('vi')
+  const [progress, setProgress] = useState<number | null>(null)
+  const dispatch = useAppDispatch()
+
+  const tabLabel: Record<string, string> = { good: 'GOOD', bad: 'NOT GOOD', all: 'All Data' }
+  const endpoint = ctx.tab === 'bad' ? 'notgood' : ctx.tab === 'good' ? 'good' : 'all'
+
+  const exportXlsx = async () => {
+    const { utils, writeFile } = await import('xlsx')
+    const lp = L10N[lang]
+    const SHEET_SIZE = 10000
+
+    const base = new URLSearchParams({ dateFrom: ctx.dateFrom, dateTo: ctx.dateTo })
+    base.set('factory', getFactoryId())
+    if (ctx.line)   base.set('line', ctx.line)
+    if (ctx.ry)     base.set('ry', ctx.ry)
+    if (ctx.device) base.set('deviceType', ctx.device)
+
+    setProgress(5)
+
+    // Fetch stats + first page in parallel
+    const firstP = new URLSearchParams(base)
+    firstP.set('page', '1')
+    firstP.set('pageSize', String(SHEET_SIZE))
+    const [firstJson, statsJson] = await Promise.all([
+      fetch(`${getApiBase()}/api/vision/${endpoint}?${firstP.toString()}`).then(r => r.json()),
+      fetch(`${getApiBase()}/api/vision/${endpoint}/stats?${base.toString()}`).then(r => r.json()),
+    ])
+
+    const total: number = firstJson.total ?? 0
+    const totalPages = Math.max(1, Math.ceil(total / SHEET_SIZE))
+    const allRecords: any[] = [...(firstJson.records ?? [])]
+
+    setProgress(10 + Math.round((1 / totalPages) * 75))
+
+    // Fetch remaining pages sequentially
+    for (let page = 2; page <= totalPages; page++) {
+      const p = new URLSearchParams(base)
+      p.set('page', String(page))
+      p.set('pageSize', String(SHEET_SIZE))
+      const res = await fetch(`${getApiBase()}/api/vision/${endpoint}?${p.toString()}`).then(r => r.json())
+      allRecords.push(...(res.records ?? []))
+      setProgress(10 + Math.round((page / totalPages) * 75))
+    }
+
+    const wb = utils.book_new()
+    const sheetCount = Math.max(1, Math.ceil(allRecords.length / SHEET_SIZE))
+
+    // One data sheet per 10,000 rows
+    for (let s = 0; s < sheetCount; s++) {
+      const chunk = allRecords.slice(s * SHEET_SIZE, (s + 1) * SHEET_SIZE)
+      const dataAoa: any[][] = [lp.cols as unknown as any[]]
+      chunk.forEach((r: any) => {
+        dataAoa.push([
+          r.DateScan    ?? '',
+          r.Line        ?? '',
+          r.RY          ?? '',
+          r.Size        ?? '',
+          r.PO          ?? '',
+          r.Qty         ?? '',
+          r.UPC         ?? '',
+          r.RFID        ?? '',
+          r.IP4_Address ?? '',
+          r.Result      ?? (ctx.tab === 'bad' ? lp.badLabel : lp.goodLabel),
+        ])
+      })
+      const ws = utils.aoa_to_sheet(dataAoa)
+      ws['!cols'] = [{wch:22},{wch:14},{wch:16},{wch:8},{wch:14},{wch:6},{wch:16},{wch:28},{wch:16},{wch:10}]
+      const sheetName = sheetCount > 1 ? `${lp.dataSheet} ${s + 1}` : lp.dataSheet
+      utils.book_append_sheet(wb, ws, sheetName)
+    }
+
+    // Stats sheet
+    const aoa: any[][] = [
+      [lp.summarySection],
+      [lp.totalRecords, allRecords.length],
+      [lp.generatedAt,  new Date().toLocaleString()],
+      [],
+      [lp.hourlySection],
+    ]
+    if (ctx.tab === 'all' && statsJson.hourly) {
+      aoa.push([lp.hour, lp.goodLabel, lp.badLabel, lp.totalLabel])
+      statsJson.hourly.forEach((h: any) => {
+        const t = (h.goodCount ?? 0) + (h.badCount ?? 0)
+        aoa.push([`${h.hour}:${String(h.minute ?? 0).padStart(2,'0')}`, h.goodCount ?? 0, h.badCount ?? 0, t])
+      })
+    } else {
+      aoa.push([lp.hour, lp.count])
+      ;(statsJson.hourly ?? []).forEach((h: any) => aoa.push([`${h.hour}:00`, h.count]))
+    }
+    aoa.push([], [lp.lineSection], [lp.line, lp.count])
+    ;(statsJson.byLine ?? []).forEach((l: any) => aoa.push([l.Line, l.count]))
+
+    const ws2 = utils.aoa_to_sheet(aoa)
+    ws2['!cols'] = [{wch:22},{wch:12},{wch:12},{wch:12}]
+    utils.book_append_sheet(wb, ws2, lp.statsSheet)
+
+    setProgress(95)
+    writeFile(wb, `LYG_${tabLabel[ctx.tab] ?? 'Report'}_${ctx.dateFrom}_${ctx.dateTo}.xlsx`)
+  }
+
+  const fire = async () => {
+    setProgress(0)
+    try {
+      await exportXlsx()
+      setProgress(100)
+      setTimeout(() => {
+        onClose()
+        dispatch(addToast({ type: 'success', message: 'Xuất thành công · XLSX', title: 'Export complete' }))
+      }, 400)
+    } catch (err) {
+      setProgress(null)
+      dispatch(addToast({ type: 'error', message: String(err), title: 'Export failed' }))
+    }
+  }
+
+  const lp = L10N[lang]
+
+  return (
+    <Modal title={lp.modalTitle} onClose={onClose} width={580}
+      footer={
+        <>
+          <span className="dim mono export-tab-label">{tabLabel[ctx.tab] ?? ctx.tab}</span>
+          <span className="ml-auto" />
+          <button className="btn" onClick={onClose}>{lp.cancelBtn}</button>
+          <button className="btn primary export-generate-btn" onClick={fire}
+            disabled={progress !== null && progress < 100}>
+            <Icon.export /> {lp.generateBtn}
+          </button>
+        </>
+      }
+    >
+      <div className="eyebrow">Format</div>
+      <div className="export-format-box">
+        <div className="export-format-title">Excel · XLSX</div>
+        <div className="dim export-format-sub">{lp.dataSheet} + {lp.statsSheet} · 2 sheets</div>
+      </div>
+
+      <div className="eyebrow export-lang-label">{lp.langLabel}</div>
+      <div className="export-lang-list">
+        {EXPORT_LANGS.map(l => (
+          <button key={l.id} onClick={() => setLang(l.id)}
+            className={`export-lang-btn${lang === l.id ? ' selected' : ''}`}>
+            {l.label}
+          </button>
+        ))}
+      </div>
+
+      <div className="export-date-info mono">
+        <span className="dim">{lp.dateRangeLabel}: </span>
+        <strong className="export-date-val">{ctx.dateFrom}</strong>
+        <span className="dim"> → </span>
+        <strong className="export-date-val">{ctx.dateTo}</strong>
+        {ctx.line && <><span className="dim"> · Line </span><strong>{ctx.line}</strong></>}
+        {ctx.ry && <><span className="dim"> · RY </span><strong>{ctx.ry}</strong></>}
+      </div>
+
+      <div className="export-info-note">
+        {lp.infoNote(lp.dataSheet, lp.statsSheet)}
+      </div>
+
+      {progress !== null && (
+        <div className="export-progress-box">
+          <div className="row">
+            <span className="eyebrow gtext">{lp.generating}</span>
+            <span className="ml-auto mono">{Math.round(progress)}%</span>
+          </div>
+          <div className="export-progress-track">
+            <div style={{ width: progress + '%' }} className="export-progress-fill" />
+          </div>
+        </div>
+      )}
+    </Modal>
+  )
+}

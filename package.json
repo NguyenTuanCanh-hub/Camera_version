@@ -1,0 +1,25 @@
+{
+  "name": "lyg-scan-platform",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "frontend",
+    "backend"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev --workspace=frontend\" \"npm run dev --workspace=backend\"",
+    "dev:fe": "npm run dev --workspace=frontend",
+    "dev:be": "npm run dev --workspace=backend",
+    "build": "npm run build --workspace=frontend && npm run build --workspace=backend",
+    "build:fe": "npm run build --workspace=frontend",
+    "build:be": "npm run build --workspace=backend",
+    "lint": "npm run lint --workspace=frontend && npm run lint --workspace=backend",
+    "type-check": "npm run type-check --workspace=frontend && npm run type-check --workspace=backend"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  },
+  "dependencies": {
+    "i": "^0.3.7"
+  }
+}

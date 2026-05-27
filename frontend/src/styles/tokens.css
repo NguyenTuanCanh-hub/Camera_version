@@ -1,0 +1,54 @@
+/* ============================================================
+   Design tokens — CSS custom properties only
+   ============================================================ */
+
+:root {
+  /* Color palette */
+  --bg-top: #0A0E27;
+  --bg-bot: #0F1535;
+  --bg-card: rgba(255, 255, 255, 0.04);
+  --bg-card-hover: rgba(255, 255, 255, 0.06);
+  --bg-elevated: rgba(255, 255, 255, 0.06);
+  --border-hair: rgba(255, 255, 255, 0.08);
+  --border-hair-hover: rgba(255, 255, 255, 0.16);
+  --border-glow: rgba(0, 217, 255, 0.35);
+
+  --accent-1: #00D9FF;
+  --accent-2: #8B5CF6;
+  --accent-grad: linear-gradient(135deg, #00D9FF 0%, #8B5CF6 100%);
+  --accent-grad-soft: linear-gradient(135deg, rgba(0,217,255,.16) 0%, rgba(139,92,246,.16) 100%);
+
+  --good-1: #10B981;
+  --good-2: #34D399;
+  --good-grad: linear-gradient(135deg, #10B981 0%, #34D399 100%);
+  --good-glow: 0 0 24px rgba(16, 185, 129, 0.45);
+
+  --bad-1: #F59E0B;
+  --bad-2: #EF4444;
+  --bad-grad: linear-gradient(135deg, #F59E0B 0%, #EF4444 100%);
+  --bad-glow: 0 0 24px rgba(239, 68, 68, 0.45);
+
+  --online: #22C55E;
+  --offline: #991B1B;
+  --warn: #F59E0B;
+
+  --t1: #FFFFFF;
+  --t2: #94A3B8;
+  --t3: #64748B;
+  --t4: #475569;
+
+  /* Type */
+  --font-ui: 'Space Grotesk', 'Inter', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Geist Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+
+  /* Spacing scale */
+  --r-sm: 6px;
+  --r-md: 10px;
+  --r-lg: 14px;
+  --r-xl: 20px;
+  --r-2xl: 28px;
+
+  /* Shadows */
+  --sh-card: 0 1px 0 rgba(255,255,255,.04) inset, 0 8px 28px rgba(0,0,0,.4);
+  --sh-elev: 0 1px 0 rgba(255,255,255,.06) inset, 0 16px 48px rgba(0,0,0,.55);
+}
