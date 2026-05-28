@@ -13,8 +13,11 @@ const SHOW_IMPORT_PANEL = false   // đổi thành false để ẩn khu vực up
 
 const PAGE_SIZE = 50
 
-const today   = new Date().toISOString().slice(0, 10)
+const today = new Date().toISOString().slice(0, 10)
 
+const clampDateToToday = (value: string) => {
+  return value > today ? today : value
+}
 
 type TabId = 'good' | 'all' | 'bad'
 
@@ -534,9 +537,19 @@ export default function CustomerReportPage({ lang, onUploadBusy }: Props) {
           <label>{tr('c.date')}</label>
           <div className="vs-input vs-daterange" style={dateInvalid ? { borderColor: '#F87171', boxShadow: '0 0 0 2px rgba(248,113,113,0.25)' } : {}}>
             <Icon.calendar />
-            <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} />
+            <input
+              type="date"
+              value={dateFrom}
+              max={today}
+              onChange={e => setDateFrom(clampDateToToday(e.target.value))}
+            />
             <span className="vs-sep">→</span>
-            <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} />
+            <input
+              type="date"
+              value={dateTo}
+              max={today}
+              onChange={e => setDateTo(clampDateToToday(e.target.value))}
+            />
           </div>
           {dateInvalid && (
             <div style={{ color: '#FCA5A5', fontSize: 11.5, marginTop: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
