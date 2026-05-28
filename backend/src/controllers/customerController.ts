@@ -332,12 +332,42 @@ export async function uploadCustomer(req: Request, res: Response) {
     res.status(500).json({ error: err.message })
   }
 }
+
 const T = 'Customer_Shoebox'
 
+function localDateKey(d = new Date()): string {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
+function getSearchDateRange(dateFrom: string, dateTo: string) {
+  const todayKey = localDateKey()
+
+  const safeDateFrom = dateFrom > todayKey ? todayKey : dateFrom
+  const safeDateTo = dateTo > todayKey ? todayKey : dateTo
+
+  const from = new Date(`${safeDateFrom}T00:00:00`)
+  const to = new Date(`${safeDateTo}T23:59:59.997`)
+  const isToToday = safeDateTo === todayKey
+
+  return { from, to, isToToday }
+}
+
 function applyFilters(req2: any, dateFrom: string, dateTo: string, line: string, ry: string): string {
-  req2.input('df', sql.DateTime, new Date(dateFrom))
-  req2.input('dt', sql.DateTime, new Date(dateTo + 'T23:59:59'))
-  let w = `WHERE SCDate >= @df AND SCDate <= @dt`
+  const { from, to, isToToday } = getSearchDateRange(dateFrom, dateTo)
+
+  req2.input('df', sql.DateTime2(3), from)
+
+  let w = isToToday
+    ? `WHERE SCDate >= @df AND SCDate <= SYSDATETIME()`
+    : `WHERE SCDate >= @df AND SCDate <= @dt`
+
+  if (!isToToday) {
+    req2.input('dt', sql.DateTime2(3), to)
+  }
+
   if (line) { req2.input('ln', sql.NVarChar, line);       w += ` AND DepName = @ln` }
   if (ry)   { req2.input('ry', sql.VarChar,  `%${ry}%`); w += ` AND RY LIKE @ry` }
   return w
@@ -351,7 +381,7 @@ export async function getCustomer(req: Request, res: Response) {
   try {
     const pool      = await getPoolFor(factory(req))
     const dateFrom  = (req.query.dateFrom as string) || new Date(Date.now() - 7*86400000).toISOString().slice(0,10)
-    const dateTo    = (req.query.dateTo   as string) || new Date(Date.now() + 86400000).toISOString().slice(0,10)
+    const dateTo    = (req.query.dateTo   as string) || localDateKey()
     const line      = (req.query.line     as string) || ''
     const ry        = (req.query.ry       as string) || ''
     const status    = ((req.query.status  as string) || '').toUpperCase()
@@ -383,7 +413,7 @@ export async function getCustomer(req: Request, res: Response) {
           ISNULL(CAST(RY      AS NVARCHAR(100)),'')            AS RY,
           ISNULL(CAST(Size    AS NVARCHAR(50)) ,'')            AS Size,
           ISNULL(CAST(PO      AS NVARCHAR(100)),'')            AS PO,
-          ISNULL(TRY_CAST(QTY AS BIGINT), 0)                  AS Qty,
+          ISNULL(TRY_CAST(QTY AS BIGINT), 0)                   AS Qty,
           ISNULL(CAST(UPC     AS NVARCHAR(100)),'')            AS UPC,
           ISNULL(CAST(RFID    AS NVARCHAR(100)),'')            AS RFID,
           ISNULL(CAST(Result  AS NVARCHAR(100)),'')            AS Status
@@ -410,7 +440,7 @@ export async function getCustomerStats(req: Request, res: Response) {
   try {
     const pool     = await getPoolFor(factory(req))
     const dateFrom = (req.query.dateFrom as string) || new Date(Date.now() - 7*86400000).toISOString().slice(0,10)
-    const dateTo   = (req.query.dateTo   as string) || new Date(Date.now() + 86400000).toISOString().slice(0,10)
+    const dateTo   = (req.query.dateTo   as string) || localDateKey()
     const line     = (req.query.line     as string) || ''
     const ry       = (req.query.ry       as string) || ''
 
