@@ -43,6 +43,39 @@
   z-index: -1;
 }
 
+.brand-factory-btn {
+  position: relative;
+  flex-shrink: 0;
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  padding: 4px;
+  border: 0;
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.06);
+  cursor: pointer;
+  overflow: visible;
+  box-shadow:
+    0 0 24px rgba(0, 217, 255, 0.25),
+    inset 0 1px 0 rgba(255,255,255,.25);
+  transition: filter 200ms ease, transform 200ms ease;
+}
+
+.brand-factory-btn:hover {
+  filter: brightness(1.08);
+  transform: translateY(-1px);
+}
+
+.brand-factory-logo {
+  max-width: 34px;
+  max-height: 34px;
+  width: auto;
+  height: auto;
+  display: block;
+  pointer-events: none;
+}
+
 .brand-text {
   @apply flex flex-col;
   line-height: 1.05;

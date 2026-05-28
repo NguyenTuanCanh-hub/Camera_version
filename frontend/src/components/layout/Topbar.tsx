@@ -3,20 +3,11 @@ import { Icon } from '@/components/common/Icons'
 import CountUp from '@/components/common/CountUp'
 import { LANGS, translate, type Lang } from '@/i18n'
 import type { ViewId } from './Sidebar'
-import { type Factory } from '@/config/factories'
-import FactorySelectModal from './FactorySelectModal'
-import lhgImg from '@/assets/factories/LHG.png'
-import lyvImg from '@/assets/factories/LYV.png'
-import lvlImg from '@/assets/factories/LVL.png'
-
-const FACTORY_IMGS: Record<string, string> = { lhg: lhgImg, lyv: lyvImg, lvl: lvlImg }
 
 interface TopbarProps {
   view: ViewId
   lang: Lang
   setLang: (l: Lang) => void
-  factory: Factory
-  setFactory: (f: Factory) => void
   onOpenAlerts: () => void
   alertCount: number
   onlineCount: number
@@ -24,29 +15,17 @@ interface TopbarProps {
   onMenuClick?: () => void
 }
 
-function FactorySwitcher({ factory, setFactory }: { factory: Factory; setFactory: (f: Factory) => void }) {
-  const [open, setOpen] = useState(false)
-  return (
-    <>
-      <button
-        className="factory-btn"
-        onClick={() => setOpen(true)}
-        title="Switch factory"
-      >
-        <img src={FACTORY_IMGS[factory.id]} alt={factory.code} className="factory-logo-img" />
-      </button>
-      {open && (
-        <FactorySelectModal factory={factory} setFactory={setFactory} onClose={() => setOpen(false)} />
-      )}
-    </>
-  )
-}
-
 // Thanh tiêu đề trên cùng: hiển thị tên trang, số thiết bị online, số cảnh báo, nút đổi ngôn ngữ
 // Nhận dữ liệu từ AppShell, gọi onOpenAlerts để mở drawer cảnh báo khi bấm chuông
 export default function Topbar({
-  view, lang, setLang, factory, setFactory,
-  onOpenAlerts, alertCount, onlineCount, totalDevices, onMenuClick
+  view,
+  lang,
+  setLang,
+  onOpenAlerts,
+  alertCount,
+  onlineCount,
+  totalDevices,
+  onMenuClick,
 }: TopbarProps) {
   const [langOpen, setLangOpen] = useState(false)
   const tr = (k: string) => translate(lang, k)
@@ -57,6 +36,7 @@ export default function Topbar({
       <button className="icon-btn hamburger-btn" onClick={onMenuClick} title="Menu">
         <Icon.menu />
       </button>
+
       <div className="title-block">
         <div className="title">{tr(`page.${view}.title`)}</div>
         <div className="subtitle">{tr(`page.${view}.sub`)}</div>
@@ -70,6 +50,7 @@ export default function Topbar({
               <CountUp value={onlineCount} fmt={n => `${Math.round(n)} / ${totalDevices}`} />
             </span>
           </div>
+
           <div className="health-cell">
             <span className="k">{tr('top.alerts')}</span>
             <span className={`v ${alertCount > 0 ? 'bad' : 'good'}`}>
@@ -80,7 +61,6 @@ export default function Topbar({
       )}
 
       <div className="topbar-actions">
-        <FactorySwitcher factory={factory} setFactory={setFactory} />
         {/* Language picker */}
         <div className="lang-picker-wrap">
           <button
@@ -91,10 +71,15 @@ export default function Topbar({
             <span className="mono lang-short">{curLang.short}</span>
             <Icon.chevD />
           </button>
+
           {langOpen && (
             <div className="lang-menu">
               {LANGS.map(l => (
-                <button key={l.id} className={`lang-opt${l.id === lang ? ' active' : ''}`} onClick={() => { setLang(l.id); setLangOpen(false) }}>
+                <button
+                  key={l.id}
+                  className={`lang-opt${l.id === lang ? ' active' : ''}`}
+                  onClick={() => { setLang(l.id); setLangOpen(false) }}
+                >
                   <span className="mono lang-opt-short">{l.short}</span>
                   <span className="lang-opt-label">{l.label}</span>
                   {l.id === lang && <Icon.check />}
@@ -103,7 +88,8 @@ export default function Topbar({
             </div>
           )}
         </div>
-<button className="icon-btn" title={tr('top.alerts')} onClick={onOpenAlerts}>
+
+        <button className="icon-btn" title={tr('top.alerts')} onClick={onOpenAlerts}>
           <Icon.bell />
           {alertCount > 0 && <span className="badge-dot" />}
         </button>

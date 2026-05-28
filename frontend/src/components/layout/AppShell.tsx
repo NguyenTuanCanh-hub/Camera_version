@@ -195,22 +195,26 @@ export default function AppShell() {
 
       <div className={`shell${collapsed ? ' collapsed' : ''}${mobileSidebarOpen ? ' mobile-open' : ''}`}>
         <Sidebar
-          view={view} setView={switchView}
-          collapsed={collapsed} setCollapsed={setCollapsed}
-          lang={lang} onlineCount={onlineCount}
+          view={view}
+          setView={switchView}
+          collapsed={collapsed}
+          setCollapsed={setCollapsed}
+          lang={lang}
+          onlineCount={onlineCount}
+          factory={factory}
+          setFactory={setFactory}
           onMobileClose={mobileSidebarOpen ? () => setMobileSidebarOpen(false) : undefined}
         />
 
         <main className="main">
-          <Topbar
-            view={view} lang={lang} setLang={setLang}
-            factory={factory} setFactory={setFactory}
-            onOpenAlerts={() => setAlertsOpen(true)}
-            alertCount={criticalCount}
-            onlineCount={onlineCount}
-            totalDevices={devices.length}
-            onMenuClick={() => setMobileSidebarOpen(o => !o)}
-          />
+                <Topbar
+              view={view} lang={lang} setLang={setLang}
+              onOpenAlerts={() => setAlertsOpen(true)}
+              alertCount={criticalCount}
+              onlineCount={onlineCount}
+              totalDevices={devices.length}
+              onMenuClick={() => setMobileSidebarOpen(o => !o)}
+            />
           <div className="content scroll">
             {view === 'device' && (
               <DeviceMonitorPage

@@ -47,7 +47,7 @@ export async function getLines(_req: Request, res: Response) {
 }
 
 // Trả danh sách thiết bị cố định (IP + tên chuyền) để frontend biết cần ping IP nào
-// Luồng: GET /api/vision/devices → trả mảng { ip, line, lastSeen } tĩnh
+// Luồng: GET /api/vision/devices?factory=<id> → trả mảng { ip, line, lastSeen }
 // Nếu cần thêm/bớt chuyền → sửa mảng devices bên dưới
 export async function getDevices(req: Request, res: Response) {
   try {
@@ -64,7 +64,7 @@ export async function getDevices(req: Request, res: Response) {
     ]
 
     const lvlDevices = [
-      { ip: '192.168.164.113', line: 'LVL', lastSeen: new Date().toISOString() },
+      { ip: '192.168.164.113', line: 'LYV', lastSeen: new Date().toISOString() },
     ]
 
     const lyvDevices = [
@@ -73,11 +73,13 @@ export async function getDevices(req: Request, res: Response) {
 
     if (factory === 'lvl') return res.json(lvlDevices)
     if (factory === 'lyv') return res.json(lyvDevices)
-res.json(lhgDevices)
+
+    res.json(lhgDevices)
   } catch (err: any) {
     res.status(500).json({ error: err.message })
   }
 }
+
 // Ping nhiều IP cùng lúc (song song), trả kết quả alive/latency cho từng IP
 // Luồng: POST /api/vision/ping/batch { ips: [] }
 //   → Promise.all ping từng IP (timeout 2s)

@@ -1,6 +1,19 @@
+import { useState } from 'react'
 import { Icon } from '@/components/common/Icons'
 import type { Lang } from '@/i18n'
 import { translate } from '@/i18n'
+import type { Factory } from '@/config/factories'
+import FactorySelectModal from './FactorySelectModal'
+
+import lhgImg from '@/assets/factories/LHG.png'
+import lyvImg from '@/assets/factories/LYV.png'
+import lvlImg from '@/assets/factories/LVL.png'
+
+const FACTORY_IMGS: Record<string, string> = {
+  lhg: lhgImg,
+  lyv: lyvImg,
+  lvl: lvlImg,
+}
 
 // ─── Feature toggles ──────────────────────────────────────────────────────────
 const SHOW_CAMERA_VISION   = false  // đổi thành false để ẩn mục Camera Vision
@@ -24,18 +37,64 @@ interface SidebarProps {
   setCollapsed: (c: boolean) => void
   lang: Lang
   onlineCount: number
+  factory: Factory
+  setFactory: (f: Factory) => void
   onMobileClose?: () => void
+}
+
+function FactorySwitcher({
+  factory,
+  setFactory,
+}: {
+  factory: Factory
+  setFactory: (f: Factory) => void
+}) {
+  const [open, setOpen] = useState(false)
+
+  return (
+    <>
+      <button
+        className="brand-factory-btn"
+        onClick={() => setOpen(true)}
+        title="Switch factory"
+      >
+        <img
+          src={FACTORY_IMGS[factory.id]}
+          alt={factory.code}
+          className="brand-factory-logo"
+        />
+      </button>
+
+      {open && (
+        <FactorySelectModal
+          factory={factory}
+          setFactory={setFactory}
+          onClose={() => setOpen(false)}
+        />
+      )}
+    </>
+  )
 }
 
 // Thanh điều hướng bên trái với các mục: Giám sát thiết bị, Camera Vision, Khách hàng
 // Nhận view hiện tại từ AppShell, gọi setView khi người dùng bấm để chuyển trang
-export default function Sidebar({ view, setView, collapsed, setCollapsed, lang, onlineCount, onMobileClose }: SidebarProps) {
+export default function Sidebar({
+  view,
+  setView,
+  collapsed,
+  setCollapsed,
+  lang,
+  onlineCount,
+  factory,
+  setFactory,
+  onMobileClose,
+}: SidebarProps) {
   const tr = (k: string) => translate(lang, k)
 
   return (
     <aside className="sidebar">
       <div className="brand">
-        <div className="brand-mark">C</div>
+        <FactorySwitcher factory={factory} setFactory={setFactory} />
         <div className="brand-text">
           <div className="brand-name">Camera Dashboard</div>
           <div className="brand-ver">INDUSTRIAL</div>
@@ -78,4 +137,3 @@ export default function Sidebar({ view, setView, collapsed, setCollapsed, lang, 
     </aside>
   )
 }
-

@@ -817,7 +817,7 @@ hr.div {
 .lang-btn--wide {
   width: auto;
   padding: 0 10px;
-  gap: 8px;
+  gap: 2px;
 }
 
 .lang-short {

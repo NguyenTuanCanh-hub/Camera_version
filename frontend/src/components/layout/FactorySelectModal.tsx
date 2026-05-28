@@ -1,3 +1,4 @@
+import { createPortal } from 'react-dom'
 import { FACTORIES, setFactoryId, type Factory } from '@/config/factories'
 
 // Simplified map outlines (geographic-looking polygons, viewBox 0 0 100 75)
@@ -123,7 +124,7 @@ interface Props {
 }
 
 export default function FactorySelectModal({ factory, setFactory, onClose }: Props) {
-  return (
+  return createPortal(
     <div className="fsel-overlay" onClick={onClose}>
       {/* Starfield */}
       <svg className="fsel-starfield" viewBox="0 0 100 100" preserveAspectRatio="none">
@@ -155,6 +156,7 @@ export default function FactorySelectModal({ factory, setFactory, onClose }: Pro
           ))}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }
