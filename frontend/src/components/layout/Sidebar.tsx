@@ -16,8 +16,8 @@ const FACTORY_IMGS: Record<string, string> = {
 }
 
 // ─── Feature toggles ──────────────────────────────────────────────────────────
-const SHOW_CAMERA_VISION   = false  // đổi thành false để ẩn mục Camera Vision
-const SHOW_CUSTOMER_REPORT = true   // đổi thành false để ẩn mục Báo cáo khách hàng
+const SHOW_CAMERA_VISION   = true  // đổi thành false để ẩn mục Camera Vision
+const SHOW_CUSTOMER_REPORT = false   // đổi thành false để ẩn mục Báo cáo khách hàng
 
 export type ViewId = 'device' | 'vision' | 'customer'
 
@@ -56,7 +56,7 @@ function FactorySwitcher({
       <button
         className="brand-factory-btn"
         onClick={() => setOpen(true)}
-        title="Switch factory"
+        title={`${factory.code} - Select Factory`}
       >
         <img
           src={FACTORY_IMGS[factory.id]}
@@ -96,7 +96,11 @@ export default function Sidebar({
       <div className="brand">
         <FactorySwitcher factory={factory} setFactory={setFactory} />
         <div className="brand-text">
-          <div className="brand-name">Camera Dashboard</div>
+          <div className="brand-name">
+            {factory.code} Scan
+            <br />
+            Platform
+          </div>
           <div className="brand-ver">INDUSTRIAL</div>
         </div>
         {onMobileClose
@@ -128,7 +132,7 @@ export default function Sidebar({
       })}
 
       <div className="sidebar-footer">
-        <div className="sys-status">
+        <div className="sys-status" data-tooltip={`${onlineCount} Online`}>
           <span className="dot" style={{ background: onlineCount > 0 ? '#10B981' : '#EF4444', boxShadow: onlineCount > 0 ? '0 0 8px #10B981' : 'none' }} />
           <span className="label sys-status-label">{onlineCount} Online</span>
           <span className="meta">v3.0</span>

@@ -1,5 +1,7 @@
 import type { Request, Response } from 'express'
-import { getPool, sql } from '@/config/database'
+import { getPoolFor, sql } from '@/config/database'
+
+const factory = (req: Request) => (req.query.factory as string) || 'lhg'
 
 // Lấy danh sách sản phẩm ĐẠT (GOOD) từ bảng Data_Shoebox_Detail, có phân trang + filter
 // Luồng: GET /api/vision/good?dateFrom&dateTo&line&ry&deviceType&page&pageSize
@@ -8,7 +10,7 @@ import { getPool, sql } from '@/config/database'
 //   → trả { records[], total, page, pageSize }
 export async function getGood(req: Request, res: Response) {
   try {
-    const pool = await getPool()
+    const pool = await getPoolFor(factory(req))
     const dateFrom   = (req.query.dateFrom   as string) || new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10)
     const dateTo     = (req.query.dateTo     as string) || new Date(Date.now() + 86400000).toISOString().slice(0, 10)
     const line       = (req.query.line       as string) || ''
@@ -98,7 +100,7 @@ export async function getGood(req: Request, res: Response) {
 //   → trả { hourly[], byLine[] } → Frontend dùng vẽ biểu đồ cột
 export async function getGoodStats(req: Request, res: Response) {
   try {
-    const pool       = await getPool()
+    const pool       = await getPoolFor(factory(req))
     const dateFrom   = (req.query.dateFrom   as string) || new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10)
     const dateTo     = (req.query.dateTo     as string) || new Date(Date.now() + 86400000).toISOString().slice(0, 10)
     const line       = (req.query.line       as string) || ''
@@ -139,7 +141,7 @@ export async function getGoodStats(req: Request, res: Response) {
 //   → trả { records[], total, page, pageSize } với trường Result = 'GOOD'|'NOT GOOD'
 export async function getAll(req: Request, res: Response) {
   try {
-    const pool = await getPool()
+    const pool = await getPoolFor(factory(req))
     const dateFrom   = (req.query.dateFrom   as string) || new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10)
     const dateTo     = (req.query.dateTo     as string) || new Date(Date.now() + 86400000).toISOString().slice(0, 10)
     const line       = (req.query.line       as string) || ''
@@ -260,7 +262,7 @@ export async function getAll(req: Request, res: Response) {
 //   → Frontend dùng vẽ biểu đồ GOOD vs BAD theo thời gian
 export async function getAllStats(req: Request, res: Response) {
   try {
-    const pool       = await getPool()
+    const pool       = await getPoolFor(factory(req))
     const dateFrom   = (req.query.dateFrom   as string) || new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10)
     const dateTo     = (req.query.dateTo     as string) || new Date(Date.now() + 86400000).toISOString().slice(0, 10)
     const line       = (req.query.line       as string) || ''
@@ -317,7 +319,7 @@ export async function getAllStats(req: Request, res: Response) {
 //   → 2 query song song: hourly + byLine → trả { hourly[], byLine[] }
 export async function getNotGoodStats(req: Request, res: Response) {
   try {
-    const pool       = await getPool()
+    const pool       = await getPoolFor(factory(req))
     const dateFrom   = (req.query.dateFrom   as string) || new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10)
     const dateTo     = (req.query.dateTo     as string) || new Date(Date.now() + 86400000).toISOString().slice(0, 10)
     const line       = (req.query.line       as string) || ''
@@ -358,7 +360,7 @@ export async function getNotGoodStats(req: Request, res: Response) {
 //   → trả binary với Content-Type phù hợp, cache 1 giờ
 export async function getNotGoodImage(req: Request, res: Response) {
   try {
-    const pool = await getPool()
+    const pool = await getPoolFor(factory(req))
     let id: string | undefined
     if (typeof req.params.id === 'string') {
       id = req.params.id.trim()
@@ -394,7 +396,7 @@ export async function getNotGoodImage(req: Request, res: Response) {
 //   → trả { records[], total, page, pageSize } kèm ảnh lỗi (dùng /notgood/image/:id để xem)
 export async function getNotGood(req: Request, res: Response) {
   try {
-    const pool = await getPool()
+    const pool = await getPoolFor(factory(req))
     const dateFrom   = (req.query.dateFrom   as string) || new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10)
     const dateTo     = (req.query.dateTo     as string) || new Date(Date.now() + 86400000).toISOString().slice(0, 10)
     const line       = (req.query.line       as string) || ''
@@ -481,7 +483,7 @@ export async function getNotGood(req: Request, res: Response) {
 //   → Frontend dùng để hiển thị mức độ hoạt động của từng thiết bị theo thời gian
 export async function getDeviceActivity(req: Request, res: Response) {
   try {
-    const pool = await getPool()
+    const pool = await getPoolFor(factory(req))
     const days = Math.min(90, Math.max(7, parseInt((req.query.days as string) || '30')))
     const result = await pool.request()
       .input('days', sql.Int, days)
@@ -508,6 +510,77 @@ export async function getDeviceActivity(req: Request, res: Response) {
       map[ip].push({ date: d.toISOString().slice(0, 10), count: row.cnt as number })
     }
     res.json(map)
+  } catch (err: any) {
+    res.status(500).json({ error: err.message })
+  }
+}
+
+const DISPLAY: Record<string, string> = {
+  SYSTEM: 'WINDOWS TABLET',
+  DEVICE: 'ANDROID TABLET',
+  MobileApp: 'MobileApp',
+}
+
+// Lấy danh sách loại camera theo nhà máy đang chọn
+// Luồng: GET /api/vision/device-types?factory=lhg|lyv|lvl
+//   → getPoolFor(factory(req)) để lấy đúng DB của nhà máy
+//   → UNION 2 bảng GOOD + NOT GOOD để dropdown đủ loại thiết bị đang có dữ liệu
+//   → trả mảng { value, label }
+export async function getDeviceTypes(req: Request, res: Response) {
+  try {
+    const pool = await getPoolFor(factory(req))
+    const result = await pool.request().query(`
+      SELECT DISTINCT type
+      FROM (
+        SELECT RTRIM(User_Serial_Key) AS type
+        FROM Data_Shoebox_Detail
+        WHERE User_Serial_Key IS NOT NULL AND RTRIM(User_Serial_Key) <> ''
+
+        UNION
+
+        SELECT RTRIM(User_Serial_Key) AS type
+        FROM Data_Shoebox_RFID_Detail
+        WHERE User_Serial_Key IS NOT NULL AND RTRIM(User_Serial_Key) <> ''
+      ) x
+      ORDER BY type
+    `)
+
+    const types = result.recordset.map((r: { type: string }) => ({
+      value: r.type,
+      label: DISPLAY[r.type] ?? r.type,
+    }))
+
+    res.json(types)
+  } catch (err: any) {
+    res.status(500).json({ error: err.message })
+  }
+}
+
+// Lấy danh sách tên chuyền theo nhà máy đang chọn → dùng cho ô gợi ý Line trong Camera Vision
+// Luồng: GET /api/vision/lines?factory=lhg|lyv|lvl
+//   → getPoolFor(factory(req)) để lấy đúng DB của nhà máy
+//   → UNION 2 bảng GOOD + NOT GOOD để line gợi ý đầy đủ theo từng nhà máy
+//   → trả string[]
+export async function getLines(req: Request, res: Response) {
+  try {
+    const pool = await getPoolFor(factory(req))
+    const result = await pool.request().query(`
+      SELECT DISTINCT Line
+      FROM (
+        SELECT LTRIM(RTRIM(Line)) AS Line
+        FROM Data_Shoebox_Detail
+        WHERE Line IS NOT NULL AND LTRIM(RTRIM(Line)) <> ''
+
+        UNION
+
+        SELECT LTRIM(RTRIM(Line)) AS Line
+        FROM Data_Shoebox_RFID_Detail
+        WHERE Line IS NOT NULL AND LTRIM(RTRIM(Line)) <> ''
+      ) x
+      ORDER BY Line
+    `)
+
+    res.json(result.recordset.map((r: { Line: string }) => r.Line))
   } catch (err: any) {
     res.status(500).json({ error: err.message })
   }

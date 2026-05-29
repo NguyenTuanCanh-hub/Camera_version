@@ -8,6 +8,7 @@ import ProductThumb from '@/components/common/ProductThumb'
 import { fetchGood, fetchNotGood, fetchAll, fetchDeviceTypes, fetchLines, fetchGoodStats, fetchAllStats, fetchNotGoodStats, shoeImageUrl } from '@/services/visionApi'
 import type { GoodRecord, NotGoodRecord, AllRecord, DeviceType, GoodStats, AllStats, NotGoodStats } from '@/services/visionApi'
 import { translate, type Lang } from '@/i18n'
+import type { Factory } from '@/config/factories'
 
 const PAGE_SIZE = 50
 
@@ -18,8 +19,8 @@ const DEFAULT_DEVICE_TYPES: DeviceType[] = [
   { value: 'MobileApp', label: 'MobileApp' },
 ]
 
-interface ExportFilters { dateFrom: string; dateTo: string; line?: string; ry?: string; device?: string }
-interface Props { openExport: (tab: string, filters: ExportFilters) => void; lang: Lang }
+interface ExportFilters { dateFrom: string; dateTo: string; line?: string; ry?: string; device?: string; factory?: string }
+interface Props { openExport: (tab: string, filters: ExportFilters) => void; lang: Lang; factory: Factory }
 
 type TabId = 'good' | 'all' | 'bad'
 
@@ -61,11 +62,13 @@ interface SearchStripProps {
   ry: string; setRy: (v: string) => void
   device: string; setDevice: (v: string) => void
   deviceTypes: DeviceType[]
+  factory: string
   onSearch: () => void
   lang: Lang
 }
-function SearchStrip({ dateFrom, dateTo, setDateFrom, setDateTo, line, setLine, lines, ry, setRy, device, setDevice, deviceTypes, onSearch, lang }: SearchStripProps) {
+function SearchStrip({ dateFrom, dateTo, setDateFrom, setDateTo, line, setLine, lines, ry, setRy, device, setDevice, deviceTypes, factory, onSearch, lang }: SearchStripProps) {
   const tr = (k: string) => translate(lang, k)
+  const lineListId = `vs-line-list-${factory}`
   const dateInvalid = !!dateFrom && !!dateTo && dateFrom > dateTo
   const baseDevices = deviceTypes.length > 0 ? deviceTypes : DEFAULT_DEVICE_TYPES
   const resolvedDevices = [
@@ -103,14 +106,14 @@ function SearchStrip({ dateFrom, dateTo, setDateFrom, setDateTo, line, setLine, 
         <div className="vs-input">
           <input
             type="text"
-            list="vs-line-list"
+            list={lineListId}
             value={line}
             onChange={e => setLine(e.target.value)}
             placeholder={tr('c.line') + '…'}
             onKeyDown={e => e.key === 'Enter' && handleSearch()}
           />
           {line && <button className="vs-clear" onClick={() => setLine('')}><Icon.x/></button>}
-          <datalist id="vs-line-list">
+          <datalist id={lineListId}>
             {lines.map(l => <option key={l} value={l}/>)}
           </datalist>
         </div>
@@ -358,7 +361,7 @@ function NotGoodTable({ records, onRowClick, pager }: { records: NotGoodRecord[]
 
 // ─── ViewGood ─────────────────────────────────────────────────────────────────
 function ViewGood({ filters, onRowClick, lang }: {
-  filters: { dateFrom: string; dateTo: string; line: string; ry: string; device: string; trigger: number }
+  filters: { dateFrom: string; dateTo: string; line: string; ry: string; device: string; factory: string; trigger: number }
   onRowClick: (r: GoodRecord) => void
   lang: Lang
 }) {
@@ -378,11 +381,11 @@ function ViewGood({ filters, onRowClick, lang }: {
     abortGood.current = new AbortController()
     const signal = abortGood.current.signal
     if (initial) setLoading(true)
-    fetchGood({ dateFrom: filters.dateFrom, dateTo: filters.dateTo, line: filters.line || undefined, ry: filters.ry || undefined, deviceType: filters.device || undefined, page, pageSize: PAGE_SIZE }, signal)
+    fetchGood({ factory: filters.factory, dateFrom: filters.dateFrom, dateTo: filters.dateTo, line: filters.line || undefined, ry: filters.ry || undefined, deviceType: filters.device || undefined, page, pageSize: PAGE_SIZE } as any, signal)
       .then(res => { setRecords(res.records); setTotal(res.total); setLastUpdated(new Date()); setError(null) })
       .catch(err => { if (err.name !== 'AbortError') { setError(err.message); console.error(err) } })
       .finally(() => { if (initial) setLoading(false) })
-  }, [filters.dateFrom, filters.dateTo, filters.line, filters.ry, filters.device, page])
+  }, [filters.factory, filters.dateFrom, filters.dateTo, filters.line, filters.ry, filters.device, page])
 
   const doFetchRef = useRef(doFetch)
   doFetchRef.current = doFetch
@@ -405,9 +408,9 @@ function ViewGood({ filters, onRowClick, lang }: {
 
   // Fetch full stats (all records, no pagination) on filter change
   useEffect(() => {
-    fetchGoodStats({ dateFrom: filters.dateFrom, dateTo: filters.dateTo, line: filters.line || undefined, deviceType: filters.device || undefined, ry: filters.ry || undefined })
+    fetchGoodStats({ factory: filters.factory, dateFrom: filters.dateFrom, dateTo: filters.dateTo, line: filters.line || undefined, deviceType: filters.device || undefined, ry: filters.ry || undefined } as any)
       .then(setStats).catch(() => {})
-  }, [filters.trigger, filters.dateFrom, filters.dateTo, filters.line, filters.device])
+  }, [filters.trigger, filters.factory, filters.dateFrom, filters.dateTo, filters.line, filters.device])
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
 
@@ -456,7 +459,18 @@ function ViewGood({ filters, onRowClick, lang }: {
         <KpiCard label={tr('vis.totalGood')} value={total} fmt={n => Math.round(n).toLocaleString()} accent="good"/>
         <div className="kpi">
           <div className="kpi-label">{tr('vis.bestLine')}</div>
-          <div className="kpi-value grad-good">{bestLine ? bestLine.Line.slice(-4) : '—'}</div>
+          <div
+            className="kpi-value grad-good"
+            title={bestLine ? bestLine.Line : ''}
+            style={{
+              fontSize: bestLine?.Line && bestLine.Line.length > 10 ? 20 : undefined,
+              whiteSpace: 'normal',
+              wordBreak: 'break-word',
+              lineHeight: 1.1,
+            }}
+          >
+            {bestLine ? bestLine.Line : '—'}
+          </div>
           {bestLine && <div className="kpi-foot"><span className="dim">{bestLine.count.toLocaleString()} scans</span></div>}
         </div>
         <div className="kpi">
@@ -515,7 +529,7 @@ function ViewGood({ filters, onRowClick, lang }: {
 
 // ─── ViewBad ──────────────────────────────────────────────────────────────────
 function ViewBad({ filters, onRowClick, lang }: {
-  filters: { dateFrom: string; dateTo: string; line: string; ry: string; device: string; trigger: number }
+  filters: { dateFrom: string; dateTo: string; line: string; ry: string; device: string; factory: string; trigger: number }
   onRowClick: (r: NotGoodRecord) => void
   lang: Lang
 }) {
@@ -535,11 +549,11 @@ function ViewBad({ filters, onRowClick, lang }: {
     abortBad.current = new AbortController()
     const signal = abortBad.current.signal
     if (initial) setLoading(true)
-    fetchNotGood({ dateFrom: filters.dateFrom, dateTo: filters.dateTo, line: filters.line || undefined, ry: filters.ry || undefined, deviceType: filters.device || undefined, page, pageSize: PAGE_SIZE }, signal)
+    fetchNotGood({ factory: filters.factory, dateFrom: filters.dateFrom, dateTo: filters.dateTo, line: filters.line || undefined, ry: filters.ry || undefined, deviceType: filters.device || undefined, page, pageSize: PAGE_SIZE } as any, signal)
       .then(res => { setRecords(res.records); setTotal(res.total); setLastUpdated(new Date()); setError(null) })
       .catch(err => { if (err.name !== 'AbortError') { setError(err.message); console.error(err) } })
       .finally(() => { if (initial) setLoading(false) })
-  }, [filters.dateFrom, filters.dateTo, filters.line, filters.ry, filters.device, page])
+  }, [filters.factory, filters.dateFrom, filters.dateTo, filters.line, filters.ry, filters.device, page])
 
   const doFetchRef = useRef(doFetch)
   doFetchRef.current = doFetch
@@ -561,9 +575,9 @@ function ViewBad({ filters, onRowClick, lang }: {
   }, [filters.trigger])
 
   useEffect(() => {
-    fetchNotGoodStats({ dateFrom: filters.dateFrom, dateTo: filters.dateTo, line: filters.line || undefined, deviceType: filters.device || undefined, ry: filters.ry || undefined })
+    fetchNotGoodStats({ factory: filters.factory, dateFrom: filters.dateFrom, dateTo: filters.dateTo, line: filters.line || undefined, deviceType: filters.device || undefined, ry: filters.ry || undefined } as any)
       .then(setNgStats).catch(() => {})
-  }, [filters.trigger, filters.dateFrom, filters.dateTo, filters.line, filters.device])
+  }, [filters.trigger, filters.factory, filters.dateFrom, filters.dateTo, filters.line, filters.device])
 
   const lineErrors = useMemo(() =>
     ngStats.byLine
@@ -826,7 +840,7 @@ const ALL_INTERVAL_LABELS = ALL_INTERVALS.map(i => i.label)
 function ViewAll({ goodTotal, badTotal, filters, onRowClick, lang }: {
   goodTotal: number
   badTotal: number
-  filters: { dateFrom: string; dateTo: string; line: string; ry: string; device: string; trigger: number }
+  filters: { dateFrom: string; dateTo: string; line: string; ry: string; device: string; factory: string; trigger: number }
   onRowClick: (r: AllRecord) => void
   lang: Lang
 }) {
@@ -847,11 +861,11 @@ function ViewAll({ goodTotal, badTotal, filters, onRowClick, lang }: {
     abortAll.current = new AbortController()
     const signal = abortAll.current.signal
     if (initial) setLoading(true)
-    fetchAll({ dateFrom: filters.dateFrom, dateTo: filters.dateTo, line: filters.line || undefined, ry: filters.ry || undefined, deviceType: filters.device || undefined, page, pageSize: PAGE_SIZE }, signal)
+    fetchAll({ factory: filters.factory, dateFrom: filters.dateFrom, dateTo: filters.dateTo, line: filters.line || undefined, ry: filters.ry || undefined, deviceType: filters.device || undefined, page, pageSize: PAGE_SIZE } as any, signal)
       .then(res => { setRecords(res.records); setTotal(res.total); setLastUpdated(new Date()); setError(null) })
       .catch(err => { if (err.name !== 'AbortError') { setError(err.message); console.error(err) } })
       .finally(() => { if (initial) setLoading(false) })
-  }, [filters.dateFrom, filters.dateTo, filters.line, filters.ry, filters.device, page])
+  }, [filters.factory, filters.dateFrom, filters.dateTo, filters.line, filters.ry, filters.device, page])
 
   const doFetchRef = useRef(doFetch)
   doFetchRef.current = doFetch
@@ -873,9 +887,9 @@ function ViewAll({ goodTotal, badTotal, filters, onRowClick, lang }: {
   }, [filters.trigger])
 
   useEffect(() => {
-    fetchAllStats({ dateFrom: filters.dateFrom, dateTo: filters.dateTo, line: filters.line || undefined, deviceType: filters.device || undefined, ry: filters.ry || undefined })
+    fetchAllStats({ factory: filters.factory, dateFrom: filters.dateFrom, dateTo: filters.dateTo, line: filters.line || undefined, deviceType: filters.device || undefined, ry: filters.ry || undefined } as any)
       .then(setAllStats).catch(console.error)
-  }, [filters.dateFrom, filters.dateTo, filters.line, filters.device, filters.trigger])
+  }, [filters.factory, filters.dateFrom, filters.dateTo, filters.line, filters.device, filters.trigger])
 
   const all = goodTotal + badTotal
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
@@ -1084,7 +1098,7 @@ function DetailModal({ row, kind, onClose }: {
 // ─── VisionReportPage (root) ─────────────────────────────────────────────────
 // Trang báo cáo Camera Vision: xem kết quả quét GOOD / NOT GOOD / Tất cả theo bộ lọc ngày-line-RY
 // Lấy dữ liệu từ visionApi.ts, tự làm mới 30 giây, gọi openExport khi người dùng bấm xuất XLSX
-export default function VisionReportPage({ openExport, lang }: Props) {
+export default function VisionReportPage({ openExport, lang, factory }: Props) {
   const tr = (k: string) => translate(lang, k)
   const [tab, setTab] = useState<TabId>('good')
   const [dateFrom, setDateFrom] = useState(today)
@@ -1094,7 +1108,7 @@ export default function VisionReportPage({ openExport, lang }: Props) {
   const [device, setDevice] = useState('')
   const [deviceTypes, setDeviceTypes] = useState<DeviceType[]>([])
   const [lines, setLines] = useState<string[]>([])
-  const [appliedFilters, setAppliedFilters] = useState({ dateFrom: today, dateTo: today, line: '', ry: '', device: '', trigger: 0 })
+  const [appliedFilters, setAppliedFilters] = useState({ dateFrom: today, dateTo: today, line: '', ry: '', device: '', factory: factory.id, trigger: 0 })
   const [goodTotal, setGoodTotal] = useState(0)
   const [badTotal, setBadTotal] = useState(0)
   const [selectedGood, setSelectedGood] = useState<GoodRecord | null>(null)
@@ -1102,18 +1116,44 @@ export default function VisionReportPage({ openExport, lang }: Props) {
   const [selectedAll, setSelectedAll] = useState<AllRecord | null>(null)
 
   useEffect(() => {
-    fetchDeviceTypes()
-      .then(types => setDeviceTypes([{ value: '', label: '' }, ...types]))
+    setDevice('')
+    setLine('')
+    setRy('')
+    setDeviceTypes([])
+    setLines([])
+    setGoodTotal(0)
+    setBadTotal(0)
+    setAppliedFilters(f => ({
+      ...f,
+      line: '',
+      ry: '',
+      device: '',
+      factory: factory.id,
+      trigger: f.trigger + 1,
+    }))
+
+    let alive = true
+
+    Promise.all([
+      fetchDeviceTypes(factory.id),
+      fetchLines(factory.id),
+    ])
+      .then(([types, data]) => {
+        if (!alive) return
+        setDeviceTypes([{ value: '', label: '' }, ...types])
+        setLines(data)
+      })
       .catch(console.error)
-    fetchLines().then(setLines).catch(console.error)
-  }, [])
+
+    return () => { alive = false }
+  }, [factory.id])
 
   useEffect(() => {
     const fetchTotals = () => {
       if (document.hidden) return
-      fetchGood({ dateFrom: appliedFilters.dateFrom, dateTo: appliedFilters.dateTo, line: appliedFilters.line || undefined, ry: appliedFilters.ry || undefined, deviceType: appliedFilters.device || undefined, pageSize: 1 })
+      fetchGood({ factory: appliedFilters.factory, dateFrom: appliedFilters.dateFrom, dateTo: appliedFilters.dateTo, line: appliedFilters.line || undefined, ry: appliedFilters.ry || undefined, deviceType: appliedFilters.device || undefined, pageSize: 1 } as any)
         .then(r => setGoodTotal(r.total)).catch(() => {})
-      fetchNotGood({ dateFrom: appliedFilters.dateFrom, dateTo: appliedFilters.dateTo, line: appliedFilters.line || undefined, ry: appliedFilters.ry || undefined, deviceType: appliedFilters.device || undefined, pageSize: 1 })
+      fetchNotGood({ factory: appliedFilters.factory, dateFrom: appliedFilters.dateFrom, dateTo: appliedFilters.dateTo, line: appliedFilters.line || undefined, ry: appliedFilters.ry || undefined, deviceType: appliedFilters.device || undefined, pageSize: 1 } as any)
         .then(r => setBadTotal(r.total)).catch(() => {})
     }
     fetchTotals()
@@ -1131,7 +1171,8 @@ export default function VisionReportPage({ openExport, lang }: Props) {
         ry={ry} setRy={setRy}
         device={device} setDevice={setDevice}
         deviceTypes={deviceTypes}
-        onSearch={() => setAppliedFilters({ dateFrom, dateTo, line, ry, device, trigger: appliedFilters.trigger + 1 })}
+        factory={factory.id}
+        onSearch={() => setAppliedFilters({ dateFrom, dateTo, line, ry, device, factory: factory.id, trigger: appliedFilters.trigger + 1 })}
         lang={lang}
       />
 
@@ -1151,7 +1192,7 @@ export default function VisionReportPage({ openExport, lang }: Props) {
         <Filter>
           <span className="dim mono" style={{ fontSize: 11 }}>{dateFrom} → {dateTo}</span>
         </Filter>
-        <button className="btn sm primary" onClick={() => openExport(tab, { dateFrom: appliedFilters.dateFrom, dateTo: appliedFilters.dateTo, line: appliedFilters.line || undefined, ry: appliedFilters.ry || undefined, device: appliedFilters.device || undefined })} style={{ marginLeft: 8 }}>
+        <button className="btn sm primary" onClick={() => openExport(tab, { dateFrom: appliedFilters.dateFrom, dateTo: appliedFilters.dateTo, line: appliedFilters.line || undefined, ry: appliedFilters.ry || undefined, device: appliedFilters.device || undefined, factory: appliedFilters.factory })} style={{ marginLeft: 8 }}>
           <Icon.export/> {tr('c.export')}
         </button>
       </div>

@@ -8,6 +8,7 @@ import type { Lang } from '@/i18n'
 import AlertsDrawer from '@/components/ui/AlertsDrawer'
 import ExportModal, { type ExportCtx } from '@/components/ui/ExportModal'
 import { FACTORIES, setFactoryId, type Factory } from '@/config/factories'
+import lyImg from '@/assets/factories/LY.png'
 
 // Pages
 import DeviceMonitorPage, { type DeviceStatus, type PingStatus, type DeviceInfo } from '@/pages/DeviceMonitorPage'
@@ -161,6 +162,22 @@ export default function AppShell() {
 
   useEffect(() => { localStorage.setItem('cb_lang', lang) }, [lang])
   useEffect(() => { localStorage.setItem('cb_nav_collapsed', collapsed ? '1' : '0') }, [collapsed])
+
+  useEffect(() => {
+    document.title = 'LY Scan Platform'
+
+    let link = document.querySelector<HTMLLinkElement>("link[rel~='icon']")
+
+    if (!link) {
+      link = document.createElement('link')
+      link.rel = 'icon'
+      document.head.appendChild(link)
+    }
+
+    link.type = 'image/png'
+    link.href = lyImg
+  }, [])
+
   useEffect(() => {
     localStorage.setItem('cb_factory', factory.id)
     setFactoryId(factory.id)
@@ -207,14 +224,17 @@ export default function AppShell() {
         />
 
         <main className="main">
-                <Topbar
-              view={view} lang={lang} setLang={setLang}
-              onOpenAlerts={() => setAlertsOpen(true)}
-              alertCount={criticalCount}
-              onlineCount={onlineCount}
-              totalDevices={devices.length}
-              onMenuClick={() => setMobileSidebarOpen(o => !o)}
-            />
+          <Topbar
+            view={view}
+            lang={lang}
+            setLang={setLang}
+            onOpenAlerts={() => setAlertsOpen(true)}
+            alertCount={criticalCount}
+            onlineCount={onlineCount}
+            totalDevices={devices.length}
+            onMenuClick={() => setMobileSidebarOpen(o => !o)}
+          />
+
           <div className="content scroll">
             {view === 'device' && (
               <DeviceMonitorPage
@@ -229,9 +249,16 @@ export default function AppShell() {
                 lang={lang}
               />
             )}
+
             {view === 'vision' && (
-              <VisionReportPage key={factory.id} openExport={(tab: string, filters: Omit<ExportCtx, 'tab'>) => setExportCtx({ tab, ...filters })} lang={lang} />
+              <VisionReportPage
+                key={factory.id}
+                factory={factory}
+                openExport={(tab: string, filters: Omit<ExportCtx, 'tab'>) => setExportCtx({ tab, ...filters })}
+                lang={lang}
+              />
             )}
+
             {view === 'customer' && (
               <CustomerReportPage key={factory.id} lang={lang} onUploadBusy={b => { uploadBusyRef.current = b }} />
             )}
@@ -242,7 +269,7 @@ export default function AppShell() {
       {mobileSidebarOpen && <div className="mobile-overlay" onClick={() => setMobileSidebarOpen(false)} />}
       <ToastRail />
       {alertsOpen  && <AlertsDrawer alerts={alerts} onClose={() => setAlertsOpen(false)} />}
-      {exportCtx   && <ExportModal ctx={exportCtx} onClose={() => setExportCtx(null)} />}
+      {exportCtx   && <ExportModal ctx={exportCtx} lang={lang} onClose={() => setExportCtx(null)} />}
     </>
   )
 }

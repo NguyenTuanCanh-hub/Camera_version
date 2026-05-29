@@ -1,6 +1,17 @@
 import { Router } from 'express'
-import { getGood, getGoodStats, getNotGood, getNotGoodStats, getNotGoodImage, getAll, getAllStats, getDeviceActivity } from '@/controllers/visionController'
-import { getDeviceTypes, getLines, getDevices, pingBatch } from '@/controllers/devicesController'
+import {
+  getGood,
+  getGoodStats,
+  getNotGood,
+  getNotGoodStats,
+  getNotGoodImage,
+  getAll,
+  getAllStats,
+  getDeviceActivity,
+  getDeviceTypes,
+  getLines,
+} from '@/controllers/visionController'
+import { getDevices, pingBatch } from '@/controllers/devicesController'
 
 const router = Router()
 

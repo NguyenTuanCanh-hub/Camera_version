@@ -72,6 +72,7 @@ interface PagedResponse<T> {
 }
 
 interface Filters {
+  factory?: string
   dateFrom: string
   dateTo: string
   line?: string
@@ -83,7 +84,7 @@ interface Filters {
 
 function buildQS(f: Filters) {
   const p = new URLSearchParams()
-  p.set('factory', getFactoryId())
+  p.set('factory', f.factory || getFactoryId())
   p.set('dateFrom', f.dateFrom)
   p.set('dateTo', f.dateTo)
   if (f.line)       p.set('line', f.line)
@@ -130,7 +131,7 @@ export interface NotGoodStats {
 
 // Lấy thống kê lỗi theo giờ và theo dây chuyền (dùng cho biểu đồ Pareto, sparkline)
 // ViewBad trong VisionReportPage gọi khi bộ lọc thay đổi
-export async function fetchNotGoodStats(filters: Pick<Filters, 'dateFrom' | 'dateTo' | 'line' | 'deviceType' | 'ry'>): Promise<NotGoodStats> {
+export async function fetchNotGoodStats(filters: Pick<Filters, 'factory' | 'dateFrom' | 'dateTo' | 'line' | 'deviceType' | 'ry'>): Promise<NotGoodStats> {
   const res = await fetch(`${getApiBase()}/api/vision/notgood/stats?${buildQS(filters)}`)
   if (!res.ok) throw new Error(`NotGoodStats API error ${res.status}`)
   return res.json()
@@ -138,7 +139,7 @@ export async function fetchNotGoodStats(filters: Pick<Filters, 'dateFrom' | 'dat
 
 // Lấy thống kê bản ghi GOOD theo giờ và theo dây chuyền (dùng cho biểu đồ cột, sparkline)
 // ViewGood trong VisionReportPage gọi khi bộ lọc thay đổi
-export async function fetchGoodStats(filters: Pick<Filters, 'dateFrom' | 'dateTo' | 'line' | 'deviceType' | 'ry'>): Promise<GoodStats> {
+export async function fetchGoodStats(filters: Pick<Filters, 'factory' | 'dateFrom' | 'dateTo' | 'line' | 'deviceType' | 'ry'>): Promise<GoodStats> {
   const res = await fetch(`${getApiBase()}/api/vision/good/stats?${buildQS(filters)}`)
   if (!res.ok) throw new Error(`GoodStats API error ${res.status}`)
   return res.json()
@@ -151,7 +152,7 @@ export interface AllStats {
 
 // Lấy thống kê tổng hợp (GOOD + NOT GOOD) theo giờ và dây chuyền cho tab "Tất cả"
 // ViewAll trong VisionReportPage dùng để vẽ biểu đồ AreaChart và bảng xếp hạng dây chuyền
-export async function fetchAllStats(filters: Pick<Filters, 'dateFrom' | 'dateTo' | 'line' | 'deviceType' | 'ry'>): Promise<AllStats> {
+export async function fetchAllStats(filters: Pick<Filters, 'factory' | 'dateFrom' | 'dateTo' | 'line' | 'deviceType' | 'ry'>): Promise<AllStats> {
   const res = await fetch(`${getApiBase()}/api/vision/all/stats?${buildQS(filters)}`)
   if (!res.ok) throw new Error(`AllStats API error ${res.status}`)
   return res.json()
@@ -159,16 +160,16 @@ export async function fetchAllStats(filters: Pick<Filters, 'dateFrom' | 'dateTo'
 
 // Lấy danh sách loại thiết bị quét (WINDOWS TABLET, ANDROID TABLET, MobileApp)
 // Dùng để điền vào ô lọc "Loại thiết bị" trong thanh tìm kiếm VisionReportPage
-export async function fetchDeviceTypes(): Promise<DeviceType[]> {
-  const res = await fetch(`/api/vision/device-types?factory=${getFactoryId()}`)
+export async function fetchDeviceTypes(factory?: string): Promise<DeviceType[]> {
+  const res = await fetch(`/api/vision/device-types?factory=${factory || getFactoryId()}`)
   if (!res.ok) throw new Error(`DeviceTypes API error ${res.status}`)
   return res.json()
 }
 
 // Lấy danh sách tên dây chuyền sản xuất để gợi ý trong ô lọc "Line"
 // VisionReportPage gọi một lần khi tải trang
-export async function fetchLines(): Promise<string[]> {
-  const res = await fetch(`/api/vision/lines?factory=${getFactoryId()}`)
+export async function fetchLines(factory?: string): Promise<string[]> {
+  const res = await fetch(`/api/vision/lines?factory=${factory || getFactoryId()}`)
   if (!res.ok) throw new Error(`Lines API error ${res.status}`)
   return res.json()
 }

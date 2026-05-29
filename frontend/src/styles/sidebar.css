@@ -4,6 +4,9 @@
 
 .sidebar {
   @apply flex flex-col;
+  position: relative;
+  z-index: 2000;
+  overflow: visible;
   background: linear-gradient(180deg, rgba(10,14,39,.7), rgba(15,21,53,.5));
   border-right: 1px solid var(--border-hair);
   backdrop-filter: blur(20px);
@@ -198,7 +201,12 @@
 }
 
 /* Collapsed sidebar states */
-.shell.collapsed .sidebar { padding: 22px 10px 16px; }
+.shell.collapsed .sidebar {
+  padding: 22px 10px 16px;
+  z-index: 3000;
+  overflow: visible;
+}
+
 .shell.collapsed .brand { padding: 6px 4px 22px; justify-content: center; position: relative; }
 .shell.collapsed .brand-text { display: none; }
 .shell.collapsed .nav-section-label { display: none; }
@@ -210,6 +218,114 @@
 .shell.collapsed .sys-status .meta { display: none; }
 .shell.collapsed .nav-user-text { display: none; }
 .shell.collapsed .nav-collapse-btn { position: absolute; right: -14px; top: 14px; }
+
+/* Cho tooltip không bị container cha cắt */
+.shell,
+.shell.collapsed,
+.shell.collapsed .sidebar,
+.shell.collapsed .brand,
+.shell.collapsed .nav-item,
+.shell.collapsed .sidebar-footer,
+.shell.collapsed .sys-status {
+  overflow: visible;
+}
+
+/* Tooltip khi sidebar bị thu nhỏ */
+.shell.collapsed .nav-item {
+  position: relative;
+}
+
+.shell.collapsed .nav-item::after {
+  content: attr(title);
+  position: absolute;
+  left: calc(100% + 12px);
+  top: 50%;
+  transform: translateY(-50%) translateX(-4px);
+  min-width: max-content;
+  max-width: 220px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  background: rgba(15, 21, 53, 0.98);
+  border: 1px solid rgba(0, 217, 255, 0.28);
+  color: var(--t1);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.45), 0 0 16px rgba(0,217,255,0.12);
+  opacity: 0;
+  pointer-events: none;
+  z-index: 99999;
+  transition: opacity 160ms ease, transform 160ms ease;
+}
+
+.shell.collapsed .nav-item:hover::after {
+  opacity: 1;
+  transform: translateY(-50%) translateX(0);
+}
+
+/* Tooltip cho logo nhà máy khi sidebar bị thu nhỏ */
+.shell.collapsed .brand-factory-btn {
+  position: relative;
+}
+
+.shell.collapsed .brand-factory-btn::after {
+  content: attr(title);
+  position: absolute;
+  left: calc(100% + 12px);
+  top: 50%;
+  transform: translateY(-50%) translateX(-4px);
+  min-width: max-content;
+  padding: 7px 10px;
+  border-radius: 8px;
+  background: rgba(15, 21, 53, 0.98);
+  border: 1px solid rgba(0, 217, 255, 0.28);
+  color: var(--t1);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.45), 0 0 16px rgba(0,217,255,0.12);
+  opacity: 0;
+  pointer-events: none;
+  z-index: 99999;
+  transition: opacity 160ms ease, transform 160ms ease;
+}
+
+.shell.collapsed .brand-factory-btn:hover::after {
+  opacity: 1;
+  transform: translateY(-50%) translateX(0);
+}
+
+/* Tooltip cho trạng thái Online ở footer khi sidebar bị thu nhỏ */
+.shell.collapsed .sys-status {
+  position: relative;
+}
+
+.shell.collapsed .sys-status::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  left: calc(100% + 12px);
+  top: 50%;
+  transform: translateY(-50%) translateX(-4px);
+  min-width: max-content;
+  padding: 7px 10px;
+  border-radius: 8px;
+  background: rgba(15, 21, 53, 0.98);
+  border: 1px solid rgba(0, 217, 255, 0.28);
+  color: var(--t1);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.45), 0 0 16px rgba(0,217,255,0.12);
+  opacity: 0;
+  pointer-events: none;
+  z-index: 99999;
+  transition: opacity 160ms ease, transform 160ms ease;
+}
+
+.shell.collapsed .sys-status:hover::after {
+  opacity: 1;
+  transform: translateY(-50%) translateX(0);
+}
 
 .nav-collapse-btn {
   @apply grid place-items-center cursor-pointer flex-shrink-0;
