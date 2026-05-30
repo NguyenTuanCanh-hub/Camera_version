@@ -44,9 +44,11 @@ interface SparklineProps {
   fill?: boolean
   glow?: boolean
   live?: boolean
+  labels?: string[]
+  hoverLabels?: string[]  // nhãn tooltip dạng "7h30 – 8h30"
 }
 
-export function Sparkline({ data, height = 64 }: SparklineProps) {
+export function Sparkline({ data, height = 64, labels, hoverLabels }: SparklineProps) {
   const [hov, setHov] = useState<number | null>(null)
   if (!data?.length) return null
 
@@ -111,8 +113,8 @@ export function Sparkline({ data, height = 64 }: SparklineProps) {
       </div>
       <div style={{ display: 'flex', height: AXIS_H, alignItems: 'flex-start', paddingTop: 2 }}>
         {data.map((_, i) => (
-          <div key={i} style={{ flex: 1, fontSize: 12, fontFamily: 'var(--font-mono)', color: '#4B5E75', textAlign: 'center' }}>
-            {i % step === 0 ? `${i}h` : ''}
+          <div key={i} style={{ flex: 1, fontSize: 11, fontFamily: 'var(--font-mono)', color: '#4B5E75', textAlign: 'center' }}>
+            {i % step === 0 ? (labels ? labels[i] : `${i}h`) : ''}
           </div>
         ))}
       </div>
@@ -130,8 +132,8 @@ export function Sparkline({ data, height = 64 }: SparklineProps) {
           whiteSpace: 'nowrap',
         }}>
           <div style={{ fontSize: 12, color: '#64748B', fontFamily: 'var(--font-mono)', marginBottom: 3 }}>
-            {String(hov).padStart(2, '0')}:00
-            {hov === peak && <span style={{ marginLeft: 8, color: '#F59E0B', fontSize: 11 }}>▲ cao nhất</span>}
+            {hoverLabels ? hoverLabels[hov] : labels ? labels[hov] : `${String(hov).padStart(2, '0')}:00`}
+            {hov === peak && <span style={{ marginLeft: 8, color: '#F59E0B', fontSize: 11 }}>▲ peak</span>}
           </div>
           <div style={{ fontSize: 17, fontFamily: 'var(--font-mono)', fontWeight: 700, color: '#F1F5F9' }}>
             {data[hov].toLocaleString()}

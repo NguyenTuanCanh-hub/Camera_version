@@ -67,6 +67,7 @@ export async function getGood(req: Request, res: Response) {
         d.ShoeImage,
         CONVERT(varchar(23), d.DateScan, 121) AS DateScan,
         d.Line,
+        ISNULL(bdep.DepName, d.Line) AS DepName,
         d.RY,
         d.Size,
         ISNULL(d.PO, '')         AS PO,
@@ -75,6 +76,7 @@ export async function getGood(req: Request, res: Response) {
         d.IP4_Address,
         ISNULL(r.RFID, ISNULL(d.RFID, '')) AS RFID
       FROM Data_Shoebox_Detail d
+      LEFT JOIN BDepartment bdep ON LTRIM(RTRIM(bdep.id)) = LTRIM(RTRIM(d.Line))
       OUTER APPLY (
         SELECT TOP 1 r2.RFID
         FROM Data_Shoebox_RFID_Detail r2
@@ -118,14 +120,32 @@ export async function getGoodStats(req: Request, res: Response) {
     const lReq = pool.request()
       .input('dateFrom2', sql.DateTime, new Date(dateFrom))
       .input('dateTo2',   sql.DateTime, new Date(dateTo + 'T23:59:59'))
-    let lWhere = `WHERE DateScan >= @dateFrom2 AND DateScan <= @dateTo2`
-    if (deviceType) { lReq.input('deviceType2', sql.NVarChar, deviceType); lWhere += ` AND RTRIM(User_Serial_Key) = @deviceType2` }
-    if (line)       { lReq.input('line2',       sql.NVarChar, line);       lWhere += ` AND Line = @line2` }
-    if (ry)         { lReq.input('ry2',         sql.VarChar,  `%${ry}%`);  lWhere += ` AND RY LIKE @ry2` }
+    let lWhere = `WHERE d.DateScan >= @dateFrom2 AND d.DateScan <= @dateTo2`
+    if (deviceType) { lReq.input('deviceType2', sql.NVarChar, deviceType); lWhere += ` AND RTRIM(d.User_Serial_Key) = @deviceType2` }
+    if (line)       { lReq.input('line2',       sql.NVarChar, line);       lWhere += ` AND d.Line = @line2` }
+    if (ry)         { lReq.input('ry2',         sql.VarChar,  `%${ry}%`);  lWhere += ` AND d.RY LIKE @ry2` }
 
     const [hourlyRes, lineRes] = await Promise.all([
-      hReq.query(`SELECT DATEPART(HOUR, DateScan) AS hour, COUNT(*) AS count FROM Data_Shoebox_Detail ${hWhere} GROUP BY DATEPART(HOUR, DateScan) ORDER BY hour`),
-      lReq.query(`SELECT TOP 10 Line, COUNT(*) AS count FROM Data_Shoebox_Detail ${lWhere} GROUP BY Line ORDER BY count DESC`),
+      hReq.query(`
+        SELECT
+          DATEPART(HOUR, DATEADD(MINUTE, -30, DateScan)) AS hour,
+          30 AS minute,
+          COUNT(*) AS count
+        FROM Data_Shoebox_Detail WITH (NOLOCK)
+        ${hWhere}
+        GROUP BY DATEPART(HOUR, DATEADD(MINUTE, -30, DateScan))
+        ORDER BY hour
+      `),
+      lReq.query(`
+        SELECT TOP 10
+          d.Line,
+          ISNULL((SELECT TOP 1 DepName FROM BDepartment WHERE LTRIM(RTRIM(id)) = LTRIM(RTRIM(d.Line))), d.Line) AS DepName,
+          COUNT(*) AS count
+        FROM Data_Shoebox_Detail d WITH (NOLOCK)
+        ${lWhere}
+        GROUP BY d.Line
+        ORDER BY count DESC
+      `),
     ])
 
     res.json({ hourly: hourlyRes.recordset, byLine: lineRes.recordset })
@@ -212,6 +232,7 @@ export async function getAll(req: Request, res: Response) {
           d.ShoeImage,
           CONVERT(varchar(23), d.DateScan, 121) AS DateScan,
           d.Line,
+          ISNULL(bdg.DepName, d.Line) AS DepName,
           d.RY,
           d.Size,
           ISNULL(d.PO, '')                      AS PO,
@@ -222,6 +243,7 @@ export async function getAll(req: Request, res: Response) {
           'GOOD'                                AS Result,
           ''                                    AS Status
         FROM Data_Shoebox_Detail d
+        LEFT JOIN BDepartment bdg ON LTRIM(RTRIM(bdg.id)) = LTRIM(RTRIM(d.Line))
         WHERE ${gWhere}
 
         UNION ALL
@@ -231,6 +253,7 @@ export async function getAll(req: Request, res: Response) {
           r.Image                  AS ShoeImage,
           CONVERT(varchar(23), r.DateScan, 121) AS DateScan,
           r.Line,
+          ISNULL(bdr.DepName, r.Line) AS DepName,
           r.RY,
           r.Size,
           ISNULL(r.PO, '')                      AS PO,
@@ -241,6 +264,7 @@ export async function getAll(req: Request, res: Response) {
           'NOT GOOD'                            AS Result,
           ISNULL(r.Status, '')                  AS Status
         FROM Data_Shoebox_RFID_Detail r
+        LEFT JOIN BDepartment bdr ON LTRIM(RTRIM(bdr.id)) = LTRIM(RTRIM(r.Line))
         WHERE ${rWhere}
       ) combined
       ORDER BY DateScan DESC
@@ -291,19 +315,23 @@ export async function getAllStats(req: Request, res: Response) {
     const [hourlyRes, lineRes] = await Promise.all([
       hReq.query(`
         SELECT hour, minute, SUM(goodCount) AS goodCount, SUM(badCount) AS badCount FROM (
-          SELECT DATEPART(HOUR, DateScan) AS hour, (DATEPART(MINUTE, DateScan) / 30) * 30 AS minute, COUNT(*) AS goodCount, 0 AS badCount
-          FROM Data_Shoebox_Detail d WHERE ${gWhere} GROUP BY DATEPART(HOUR, DateScan), (DATEPART(MINUTE, DateScan) / 30) * 30
+          SELECT DATEPART(HOUR, DATEADD(MINUTE, -30, DateScan)) AS hour, 30 AS minute, COUNT(*) AS goodCount, 0 AS badCount
+          FROM Data_Shoebox_Detail d WITH (NOLOCK) WHERE ${gWhere} GROUP BY DATEPART(HOUR, DATEADD(MINUTE, -30, DateScan))
           UNION ALL
-          SELECT DATEPART(HOUR, DateScan) AS hour, (DATEPART(MINUTE, DateScan) / 30) * 30 AS minute, 0 AS goodCount, COUNT(*) AS badCount
-          FROM Data_Shoebox_RFID_Detail r WHERE ${rWhere} GROUP BY DATEPART(HOUR, DateScan), (DATEPART(MINUTE, DateScan) / 30) * 30
+          SELECT DATEPART(HOUR, DATEADD(MINUTE, -30, DateScan)) AS hour, 30 AS minute, 0 AS goodCount, COUNT(*) AS badCount
+          FROM Data_Shoebox_RFID_Detail r WITH (NOLOCK) WHERE ${rWhere} GROUP BY DATEPART(HOUR, DATEADD(MINUTE, -30, DateScan))
         ) combined GROUP BY hour, minute ORDER BY hour, minute
       `),
       lReq.query(`
-        SELECT TOP 10 Line, COUNT(*) AS count FROM (
-          SELECT d.Line FROM Data_Shoebox_Detail d WHERE ${lgWhere}
+        SELECT TOP 10 c.Line,
+          ISNULL((SELECT TOP 1 DepName FROM BDepartment WHERE LTRIM(RTRIM(id)) = c.Line), c.Line) AS DepName,
+          COUNT(*) AS count
+        FROM (
+          SELECT LTRIM(RTRIM(d.Line)) AS Line FROM Data_Shoebox_Detail d WITH (NOLOCK) WHERE ${lgWhere}
           UNION ALL
-          SELECT r.Line FROM Data_Shoebox_RFID_Detail r WHERE ${lrWhere}
-        ) combined GROUP BY Line ORDER BY count DESC
+          SELECT LTRIM(RTRIM(r.Line)) AS Line FROM Data_Shoebox_RFID_Detail r WITH (NOLOCK) WHERE ${lrWhere}
+        ) c
+        GROUP BY c.Line ORDER BY count DESC
       `),
     ])
 
@@ -343,8 +371,8 @@ export async function getNotGoodStats(req: Request, res: Response) {
     if (ry)         { req3.input('ry2',         sql.VarChar,  `%${ry}%`);  where2 += ` AND r.RY LIKE @ry2` }
 
     const [hourlyRes, lineRes] = await Promise.all([
-      req2.query(`SELECT DATEPART(HOUR, r.DateScan) AS hour, COUNT(*) AS count FROM Data_Shoebox_RFID_Detail r ${where} GROUP BY DATEPART(HOUR, r.DateScan) ORDER BY hour`),
-      req3.query(`SELECT TOP 10 r.Line, COUNT(*) AS count FROM Data_Shoebox_RFID_Detail r ${where2} GROUP BY r.Line ORDER BY count DESC`),
+      req2.query(`SELECT DATEPART(HOUR, DATEADD(MINUTE, -30, r.DateScan)) AS hour, 30 AS minute, COUNT(*) AS count FROM Data_Shoebox_RFID_Detail r WITH (NOLOCK) ${where} GROUP BY DATEPART(HOUR, DATEADD(MINUTE, -30, r.DateScan)) ORDER BY hour`),
+      req3.query(`SELECT TOP 10 r.Line, ISNULL((SELECT TOP 1 DepName FROM BDepartment WHERE LTRIM(RTRIM(id)) = LTRIM(RTRIM(r.Line))), r.Line) AS DepName, COUNT(*) AS count FROM Data_Shoebox_RFID_Detail r WITH (NOLOCK) ${where2} GROUP BY r.Line ORDER BY count DESC`),
     ])
 
     res.json({ hourly: hourlyRes.recordset, byLine: lineRes.recordset })
@@ -453,6 +481,7 @@ export async function getNotGood(req: Request, res: Response) {
         r.Image                  AS ShoeImage,
         CONVERT(varchar(23), r.DateScan, 121) AS DateScan,
         r.Line,
+        ISNULL(bdep.DepName, r.Line) AS DepName,
         r.RY,
         r.Size,
         ISNULL(r.PO, '')         AS PO,
@@ -466,6 +495,7 @@ export async function getNotGood(req: Request, res: Response) {
         ISNULL(r.UPC_RFID, '')     AS UPC_RFID,
         ISNULL(r.Article_RFID, '') AS Article_RFID
       FROM Data_Shoebox_RFID_Detail r
+      LEFT JOIN BDepartment bdep ON LTRIM(RTRIM(bdep.id)) = LTRIM(RTRIM(r.Line))
       ${whereClause}
       ORDER BY r.DateScan DESC
       OFFSET @offset ROWS FETCH NEXT @pageSize ROWS ONLY
@@ -565,7 +595,9 @@ export async function getLines(req: Request, res: Response) {
   try {
     const pool = await getPoolFor(factory(req))
     const result = await pool.request().query(`
-      SELECT DISTINCT Line
+      SELECT DISTINCT
+        x.Line,
+        ISNULL((SELECT TOP 1 DepName FROM BDepartment WHERE LTRIM(RTRIM(id)) = x.Line), x.Line) AS DepName
       FROM (
         SELECT LTRIM(RTRIM(Line)) AS Line
         FROM Data_Shoebox_Detail
@@ -577,10 +609,81 @@ export async function getLines(req: Request, res: Response) {
         FROM Data_Shoebox_RFID_Detail
         WHERE Line IS NOT NULL AND LTRIM(RTRIM(Line)) <> ''
       ) x
-      ORDER BY Line
+      ORDER BY DepName
     `)
 
-    res.json(result.recordset.map((r: { Line: string }) => r.Line))
+    res.json(result.recordset.map((r: { Line: string; DepName: string }) => ({
+      value: r.Line,
+      label: r.DepName,
+    })))
+  } catch (err: any) {
+    res.status(500).json({ error: err.message })
+  }
+}
+
+// Lấy target sản lượng mỗi tiếng theo kế hoạch ngày hôm nay từ bảng SCBZCL + SCRL
+// Luồng: GET /api/vision/target?factory=lhg&line=...
+//   → nếu có line: lấy target của chuyền đó
+//   → nếu không có line: SUM target của tất cả chuyền
+//   → trả { targetPerHour } để frontend vẽ đường ngang tham chiếu trên biểu đồ cột
+export async function getDailyTarget(req: Request, res: Response) {
+  try {
+    const pool = await getPoolFor(factory(req))
+    const line = (req.query.line as string) || ''
+
+    const dateParam = (req.query.date as string) || new Date().toISOString().slice(0, 10)
+    const targetDate = new Date(dateParam)
+
+    const req2 = pool.request()
+      .input('targetDate', sql.Date, targetDate)
+    let whereClause = `WHERE CONVERT(date, BZDate) = @targetDate`
+    if (line) {
+      req2.input('line', sql.NVarChar, line)
+      whereClause += ` AND SCBZCL.DepNo = @line`
+    }
+
+    const result = await req2.query(`
+      SELECT
+        ISNULL(SUM(t.Qty_Target), 0)           AS targetPerHour,
+        ISNULL(SUM(t.DailyQty), 0)             AS totalDailyTarget,
+        ISNULL(
+          NULLIF((
+            SELECT ROUND(AVG(NULLIF(CAST(SCGS AS float), 0)), 0)
+            FROM dbo.SCRL
+            WHERE SCYEAR  = YEAR(@targetDate)
+              AND SCMONTH = MONTH(@targetDate)
+              AND SCDay   = DAY(@targetDate)
+              ${line ? `AND DepNO = @line` : ''}
+          ), 0),
+          (
+            SELECT ROUND(AVG(NULLIF(CAST(SCGS AS float), 0)), 0)
+            FROM dbo.SCRL
+            WHERE SCYEAR  = YEAR(GETDATE())
+              AND SCMONTH = MONTH(GETDATE())
+              AND SCDay   = DAY(GETDATE())
+              ${line ? `AND DepNO = @line` : ''}
+          )
+        ) AS scgs
+      FROM (
+        SELECT
+          CONVERT(int, ISNULL(ROUND(Qty / NULLIF(CAST(SCGS AS float), 0), 0), 0)) AS Qty_Target,
+          ISNULL(CAST(Qty AS int), 0)                                               AS DailyQty
+        FROM dbo.SCBZCL
+        LEFT JOIN dbo.SCRL
+          ON SCRL.DepNO = SCBZCL.DepNo
+          AND YEAR(BZDate) = SCYEAR
+          AND MONTH(BZDate) = SCMONTH
+          AND DAY(BZDate) = SCDay
+        ${whereClause}
+      ) t
+    `)
+
+    const row = result.recordset[0]
+    res.json({
+      targetPerHour:    row?.targetPerHour    ?? 0,
+      totalDailyTarget: row?.totalDailyTarget ?? 0,
+      scgs:             row?.scgs             ?? 0,
+    })
   } catch (err: any) {
     res.status(500).json({ error: err.message })
   }

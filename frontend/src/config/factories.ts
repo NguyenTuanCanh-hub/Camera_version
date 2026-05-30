@@ -11,7 +11,7 @@ export interface Factory {
 export const FACTORIES: Factory[] = [
   { id: 'lhg', code: 'LHG', ip: '192.168.30.1', color: '#00D9FF', glow: 'rgba(0,217,255,0.45)' },
   { id: 'lyv', code: 'LYV', ip: '192.168.0.1', color: '#A78BFA', glow: 'rgba(167,139,250,0.45)' },
-  { id: 'lvl', code: 'LVL', ip: '192.168.164.113', color: '#F59E0B', glow: 'rgba(245,158,11,0.45)' },
+  { id: 'lvl', code: 'LVL', ip: '192.168.60.9', color: '#F59E0B', glow: 'rgba(245,158,11,0.45)' },
 ]
 
 // Current selected factory — updated by AppShell when user switches.

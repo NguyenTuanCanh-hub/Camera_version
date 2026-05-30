@@ -10,6 +10,7 @@ import {
   getDeviceActivity,
   getDeviceTypes,
   getLines,
+  getDailyTarget,
 } from '@/controllers/visionController'
 import { getDevices, pingBatch } from '@/controllers/devicesController'
 
@@ -26,6 +27,7 @@ router.get('/device-types',      getDeviceTypes)
 router.get('/lines',             getLines)
 router.get('/devices/activity',  getDeviceActivity)
 router.get('/devices',           getDevices)
+router.get('/target',            getDailyTarget)
 router.post('/ping/batch',       pingBatch)
 
 export default router

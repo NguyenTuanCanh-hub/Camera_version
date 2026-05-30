@@ -19,7 +19,7 @@ function makeConfig(server: string): sql.config {
       trustServerCertificate: process.env.DB_TRUST_SERVER_CERTIFICATE === 'true',
       enableArithAbort:       true,
     },
-    requestTimeout: 60000,
+    requestTimeout: 120000,
     pool: { max: 10, min: 0, idleTimeoutMillis: 30000 },
   }
 }

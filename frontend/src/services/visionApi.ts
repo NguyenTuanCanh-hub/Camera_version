@@ -168,8 +168,28 @@ export async function fetchDeviceTypes(factory?: string): Promise<DeviceType[]> 
 
 // Lấy danh sách tên dây chuyền sản xuất để gợi ý trong ô lọc "Line"
 // VisionReportPage gọi một lần khi tải trang
-export async function fetchLines(factory?: string): Promise<string[]> {
+export interface LineOption { value: string; label: string }
+
+export async function fetchLines(factory?: string): Promise<LineOption[]> {
   const res = await fetch(`/api/vision/lines?factory=${factory || getFactoryId()}`)
   if (!res.ok) throw new Error(`Lines API error ${res.status}`)
+  return res.json()
+}
+
+export interface DailyTarget {
+  targetPerHour: number
+  totalDailyTarget: number
+  scgs: number
+}
+
+// Lấy target sản lượng mỗi tiếng theo kế hoạch ngày hôm nay
+// Nếu có line: target riêng chuyền đó. Nếu không: tổng tất cả chuyền
+export async function fetchDailyTarget(factory?: string, line?: string, date?: string): Promise<DailyTarget> {
+  const p = new URLSearchParams()
+  p.set('factory', factory || getFactoryId())
+  if (line) p.set('line', line)
+  if (date) p.set('date', date)
+  const res = await fetch(`${getApiBase()}/api/vision/target?${p.toString()}`)
+  if (!res.ok) throw new Error(`Target API error ${res.status}`)
   return res.json()
 }

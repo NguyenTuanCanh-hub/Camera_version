@@ -5,8 +5,8 @@ import BarChartJS from '@/components/charts/BarChartJS'
 import { Icon } from '@/components/common/Icons'
 import { KpiCard, CountUp } from '@/components/common'
 import ProductThumb from '@/components/common/ProductThumb'
-import { fetchGood, fetchNotGood, fetchAll, fetchDeviceTypes, fetchLines, fetchGoodStats, fetchAllStats, fetchNotGoodStats, shoeImageUrl } from '@/services/visionApi'
-import type { GoodRecord, NotGoodRecord, AllRecord, DeviceType, GoodStats, AllStats, NotGoodStats } from '@/services/visionApi'
+import { fetchGood, fetchNotGood, fetchAll, fetchDeviceTypes, fetchLines, fetchGoodStats, fetchAllStats, fetchNotGoodStats, fetchDailyTarget, shoeImageUrl } from '@/services/visionApi'
+import type { GoodRecord, NotGoodRecord, AllRecord, DeviceType, GoodStats, AllStats, NotGoodStats, LineOption } from '@/services/visionApi'
 import { translate, type Lang } from '@/i18n'
 import type { Factory } from '@/config/factories'
 
@@ -25,6 +25,23 @@ interface Props { openExport: (tab: string, filters: ExportFilters) => void; lan
 type TabId = 'good' | 'all' | 'bad'
 
 const today = new Date().toISOString().slice(0, 10)
+
+const GOOD_INTERVALS = [
+  { hour: 7,  minute: 30, label: '7h30'  },
+  { hour: 8,  minute: 30, label: '8h30'  },
+  { hour: 9,  minute: 30, label: '9h30'  },
+  { hour: 10, minute: 30, label: '10h30' },
+  { hour: 11, minute: 30, label: '11h30' },
+  { hour: 12, minute: 30, label: '12h30' },
+  { hour: 13, minute: 30, label: '13h30' },
+  { hour: 14, minute: 30, label: '14h30' },
+  { hour: 15, minute: 30, label: '15h30' },
+  { hour: 16, minute: 30, label: '16h30' },
+  { hour: 17, minute: 30, label: '17h30' },
+  { hour: 18, minute: 30, label: '18h30' },
+  { hour: 19, minute: 30, label: '19h30' },
+  { hour: 20, minute: 30, label: '20h30' },
+]
 
 
 // ─── Utility components ───────────────────────────────────────────────────────
@@ -58,7 +75,7 @@ interface SearchStripProps {
   dateFrom: string; setDateFrom: (v: string) => void
   dateTo: string; setDateTo: (v: string) => void
   line: string; setLine: (v: string) => void
-  lines: string[]
+  lines: LineOption[]
   ry: string; setRy: (v: string) => void
   device: string; setDevice: (v: string) => void
   deviceTypes: DeviceType[]
@@ -70,6 +87,8 @@ function SearchStrip({ dateFrom, dateTo, setDateFrom, setDateTo, line, setLine, 
   const tr = (k: string) => translate(lang, k)
   const lineListId = `vs-line-list-${factory}`
   const dateInvalid = !!dateFrom && !!dateTo && dateFrom > dateTo
+  const dateDiffDays = dateFrom && dateTo ? Math.ceil((new Date(dateTo).getTime() - new Date(dateFrom).getTime()) / 86400000) : 0
+  const dateRangeWarn = dateDiffDays > 31
   const baseDevices = deviceTypes.length > 0 ? deviceTypes : DEFAULT_DEVICE_TYPES
   const resolvedDevices = [
     { value: '', label: tr('vis.allDevices') },
@@ -114,7 +133,7 @@ function SearchStrip({ dateFrom, dateTo, setDateFrom, setDateTo, line, setLine, 
           />
           {line && <button className="vs-clear" onClick={() => setLine('')}><Icon.x/></button>}
           <datalist id={lineListId}>
-            {lines.map(l => <option key={l} value={l}/>)}
+            {lines.map(l => <option key={l.value} value={l.label}/>)}
           </datalist>
         </div>
       </div>
@@ -130,6 +149,11 @@ function SearchStrip({ dateFrom, dateTo, setDateFrom, setDateTo, line, setLine, 
           {ry && <button className="vs-clear" onClick={() => setRy('')}><Icon.x/></button>}
         </div>
       </div>
+      {dateRangeWarn && (
+        <div style={{ fontSize: 11, color: '#F59E0B', fontFamily: 'var(--font-mono)', alignSelf: 'center' }}>
+          {tr('vis.slowWarning').replace('{n}', String(dateDiffDays))}
+        </div>
+      )}
       <button className="btn vs-search-btn" onClick={handleSearch} disabled={dateInvalid} title={dateInvalid ? tr('vis.dateError') : ''}>
         <Icon.search/> {tr('c.search')}
       </button>
@@ -305,7 +329,7 @@ function GoodTable({ records, onRowClick, pager }: { records: GoodRecord[]; onRo
               <tr key={r.id} onClick={() => onRowClick(r)} style={{ cursor: 'pointer' }}>
                 <td><ShoeImg ip={r.IP4_Address} filename={r.ShoeImage} ry={r.RY}/></td>
                 <td className="mono dim" style={{ fontSize: 11.5 }}>{r.DateScan}</td>
-                <td><span className="chip">{r.Line}</span></td>
+                <td><span className="chip">{(r as any).DepName || r.Line}</span></td>
                 <td className="mono" style={{ fontWeight: 600 }}>{r.RY}</td>
                 <td className="mono">{r.Size}</td>
                 <td className="mono">{r.PO}</td>
@@ -340,7 +364,7 @@ function NotGoodTable({ records, onRowClick, pager }: { records: NotGoodRecord[]
               <tr key={r.id} onClick={() => onRowClick(r)} style={{ cursor: 'pointer' }}>
                 <td><ShoeImg ip={r.IP4_Address} filename={r.ShoeImage} ry={r.RY} dbImageId={r.id}/></td>
                 <td className="mono dim" style={{ fontSize: 11.5 }}>{r.DateScan}</td>
-                <td><span className="chip">{r.Line}</span></td>
+                <td><span className="chip">{(r as any).DepName || r.Line}</span></td>
                 <td className="mono" style={{ fontWeight: 600 }}>{r.RY}</td>
                 <td className="mono">{r.Size}</td>
                 <td className="mono">{r.PO}</td>
@@ -372,6 +396,10 @@ function ViewGood({ filters, onRowClick, lang }: {
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
   const [page, setPage]           = useState(1)
   const [stats, setStats]         = useState<GoodStats>({ hourly: [], byLine: [] })
+  const [statsLoading, setStatsLoading] = useState(false)
+  const [targetPerHour, setTargetPerHour]       = useState(0)
+  const [totalDailyTarget, setTotalDailyTarget] = useState(0)
+  const [scgs, setScgs]                         = useState(0)
   const mountedG     = useRef(false)
   const pageMountedG = useRef(false)
   const abortGood    = useRef<AbortController | null>(null)
@@ -408,24 +436,40 @@ function ViewGood({ filters, onRowClick, lang }: {
 
   // Fetch full stats (all records, no pagination) on filter change
   useEffect(() => {
+    setStatsLoading(true)
     fetchGoodStats({ factory: filters.factory, dateFrom: filters.dateFrom, dateTo: filters.dateTo, line: filters.line || undefined, deviceType: filters.device || undefined, ry: filters.ry || undefined } as any)
-      .then(setStats).catch(() => {})
+      .then(data => { setStats(data); setStatsLoading(false) })
+      .catch(() => setStatsLoading(false))
   }, [filters.trigger, filters.factory, filters.dateFrom, filters.dateTo, filters.line, filters.device])
+
+  // Fetch today's hourly target (from SCBZCL planning table)
+  useEffect(() => {
+    fetchDailyTarget(filters.factory, filters.line || undefined, filters.dateTo)
+      .then(d => {
+        setTargetPerHour(d.targetPerHour)
+        setTotalDailyTarget(d.totalDailyTarget)
+        setScgs(d.scgs)
+      })
+      .catch(() => { setTargetPerHour(0); setTotalDailyTarget(0); setScgs(0) })
+  }, [filters.factory, filters.line, filters.trigger])
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
 
-  // Working hours 7h–21h from full stats
+  // Working hours 7h30–21h00, 1-hour buckets shifted by 30 min (backend uses DATEADD(MINUTE,-30))
   const workingHourly = useMemo(() => {
-    return Array.from({ length: 15 }, (_, i) => {
-      const hour = i + 7
-      return stats.hourly.find(h => h.hour === hour)?.count ?? 0
-    })
+    return GOOD_INTERVALS.map(i =>
+      stats.hourly.find(h => h.hour === i.hour)?.count ?? 0
+    )
   }, [stats.hourly])
 
-  const workingLabels = Array.from({ length: 15 }, (_, i) => i === 0 ? '7h30' : `${i + 7}h`)
+  const workingLabels = GOOD_INTERVALS.map((i, idx) =>
+    idx === GOOD_INTERVALS.length - 1
+      ? `${i.hour}:30-21:00`
+      : `${i.hour}:30-${i.hour + 1}:30`
+  )
   const workingMax    = Math.max(...workingHourly, 1)
   const workingSum    = workingHourly.reduce((s, v) => s + v, 0)
-  const workingAvg    = workingSum / 15
+  const workingAvg    = workingSum / GOOD_INTERVALS.length
   const peakIdx       = workingHourly.indexOf(Math.max(...workingHourly))
   const activeHours   = workingHourly.filter(v => v > 0)
   const lowIdx        = workingHourly.indexOf(Math.min(...(activeHours.length ? activeHours : [0])))
@@ -444,11 +488,11 @@ function ViewGood({ filters, onRowClick, lang }: {
   const bestLine   = stats.byLine[0]
   const pager      = <Pager page={page} totalPages={totalPages} total={total} onPrev={() => setPage(p => Math.max(1, p - 1))} onNext={() => setPage(p => Math.min(totalPages, p + 1))}/>
 
-  // Mini sparkline for KPI from stats
+  // Mini sparkline for KPI from stats — dùng cùng slot 7h30-20h30 như biểu đồ chính
   const allHourly = useMemo(() => {
-    const arr = Array<number>(24).fill(0)
-    stats.hourly.forEach(h => { arr[h.hour] = h.count })
-    return arr
+    return GOOD_INTERVALS.map(i =>
+      stats.hourly.find(h => h.hour === i.hour)?.count ?? 0
+    )
   }, [stats.hourly])
 
   const tr = (k: string) => translate(lang, k)
@@ -461,15 +505,15 @@ function ViewGood({ filters, onRowClick, lang }: {
           <div className="kpi-label">{tr('vis.bestLine')}</div>
           <div
             className="kpi-value grad-good"
-            title={bestLine ? bestLine.Line : ''}
+            title={bestLine ? ((bestLine as any).DepName || bestLine.Line) : ''}
             style={{
-              fontSize: bestLine?.Line && bestLine.Line.length > 10 ? 20 : undefined,
+              fontSize: bestLine && (((bestLine as any).DepName || bestLine.Line).length > 10) ? 20 : undefined,
               whiteSpace: 'normal',
               wordBreak: 'break-word',
               lineHeight: 1.1,
             }}
           >
-            {bestLine ? bestLine.Line : '—'}
+            {bestLine ? ((bestLine as any).DepName || bestLine.Line) : '—'}
           </div>
           {bestLine && <div className="kpi-foot"><span className="dim">{bestLine.count.toLocaleString()} scans</span></div>}
         </div>
@@ -480,7 +524,14 @@ function ViewGood({ filters, onRowClick, lang }: {
         </div>
         <div className="kpi">
           <div className="kpi-label">{tr('vis.hourlyTrend')}</div>
-          <div style={{ height: 72, marginTop: 4 }}><Sparkline data={allHourly} height={72}/></div>
+          <div style={{ height: 72, marginTop: 4 }}>
+            <Sparkline
+              data={allHourly}
+              height={72}
+              labels={GOOD_INTERVALS.map(i => i.label)}
+              hoverLabels={GOOD_INTERVALS.map(i => `${i.label} – ${i.hour + 1}h30`)}
+            />
+          </div>
         </div>
       </div>
 
@@ -494,21 +545,121 @@ function ViewGood({ filters, onRowClick, lang }: {
                 <div style={{ display: 'flex', gap: 14, marginTop: 4, fontSize: 10.5, fontFamily: 'var(--font-mono)' }}>
                   <span style={{ color: '#00D9FF' }}>▲ {tr('vis.peak')}: {workingLabels[peakIdx]} · {workingHourly[peakIdx].toLocaleString()}</span>
                   <span style={{ color: '#8B5CF6' }}>▼ {tr('vis.low')}: {workingLabels[lowIdx]} · {workingHourly[lowIdx].toLocaleString()}</span>
-                  <span style={{ color: 'var(--t3)' }}>{tr('vis.avg')}: {Math.round(workingAvg).toLocaleString()}/h</span>
+                  {targetPerHour > 0
+                    ? <span style={{ color: '#10B981' }}>Accuracy: {Math.round(workingAvg).toLocaleString()}/h ({Math.round((workingAvg / targetPerHour) * 100)}%)</span>
+                    : <span style={{ color: 'var(--t3)' }}>{tr('vis.avg')}: {Math.round(workingAvg).toLocaleString()}/h</span>
+                  }
                 </div>
               )}
             </div>
             <span className="live-pip ml-auto">LIVE</span>
+            {statsLoading && (
+              <svg width="16" height="16" viewBox="0 0 24 24" style={{ marginLeft: 8, flexShrink: 0 }}>
+                <circle cx="12" cy="12" r="9" fill="none" stroke="rgba(255,255,255,0.10)" strokeWidth="2.5"/>
+                <path d="M12 3a9 9 0 0 1 9 9" fill="none" stroke="#00D9FF" strokeWidth="2.5" strokeLinecap="round">
+                  <animateTransform attributeName="transform" type="rotate" from="0 12 12" to="360 12 12" dur="0.7s" repeatCount="indefinite"/>
+                </path>
+              </svg>
+            )}
           </div>
-          <BarChartJS labels={workingLabels} values={workingHourly} colors={hourColors} height={180} label="GOOD scans"/>
+          <div style={{ position: 'relative' }}>
+            {statsLoading && (
+              <div style={{ position: 'absolute', inset: 0, background: 'rgba(10,14,39,0.45)', zIndex: 2, borderRadius: 6, pointerEvents: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <svg width="40" height="40" viewBox="0 0 24 24">
+                  <circle cx="12" cy="12" r="9" fill="none" stroke="rgba(255,255,255,0.10)" strokeWidth="2"/>
+                  <path d="M12 3a9 9 0 0 1 9 9" fill="none" stroke="#00D9FF" strokeWidth="2" strokeLinecap="round">
+                    <animateTransform attributeName="transform" type="rotate" from="0 12 12" to="360 12 12" dur="0.7s" repeatCount="indefinite"/>
+                  </path>
+                </svg>
+              </div>
+            )}
+            <BarChartJS
+              labels={workingLabels}
+              values={workingHourly}
+              colors={hourColors}
+              height={targetPerHour > 0 ? 225 : 185}
+              label="GOOD scans"
+              targetLine={targetPerHour > 0 ? targetPerHour : undefined}
+              aboveLabel={tr('vis.aboveTarget')}
+              belowLabel={tr('vis.belowTarget')}
+              noDataLabel={tr('vis.noSlotData')}
+            />
+          </div>
+
+          {/* ── Bottom KPI panel ─────────────────────────────────────────── */}
+          {targetPerHour > 0 && workingHourly.some(v => v > 0) && (() => {
+            const totalTarget  = totalDailyTarget > 0 ? totalDailyTarget : targetPerHour * GOOD_INTERVALS.length
+            const accuracyPct  = totalTarget > 0 ? (workingSum / totalTarget) * 100 : 0
+            const accuracyColor = accuracyPct >= 100 ? '#10B981' : accuracyPct >= 80 ? '#F59E0B' : '#EF4444'
+            const planHours = scgs > 0 ? Math.round(scgs) : GOOD_INTERVALS.length
+            return (
+              <div style={{
+                display: 'grid', gridTemplateColumns: 'repeat(4,1fr)',
+                borderTop: '1px solid rgba(255,255,255,0.07)',
+                marginTop: 14, gap: 0,
+              }}>
+                {/* Total Actual */}
+                <div style={{ padding: '10px 12px', borderRight: '1px solid rgba(255,255,255,0.06)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#00D9FF" strokeWidth="1.7" strokeLinecap="round">
+                      <rect x="3" y="12" width="4" height="9" rx="1"/><rect x="10" y="7" width="4" height="14" rx="1"/><rect x="17" y="3" width="4" height="18" rx="1"/>
+                    </svg>
+                    <span style={{ fontSize: 11, color: '#94A3B8', fontFamily: 'var(--font-mono)', letterSpacing: '0.10em', fontWeight: 600 }}>{tr('vis.totalActual')}</span>
+                  </div>
+                  <div style={{ fontSize: 20, fontWeight: 700, color: '#00D9FF', fontFamily: 'var(--font-mono)', marginTop: 3 }}>
+                    {workingSum.toLocaleString()}
+                  </div>
+                </div>
+
+                {/* Total Target */}
+                <div style={{ padding: '10px 12px', borderRight: '1px solid rgba(255,255,255,0.06)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#F59E0B" strokeWidth="1.7" strokeLinecap="round">
+                      <circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/><circle cx="12" cy="12" r="1" fill="#F59E0B"/>
+                    </svg>
+                    <span style={{ fontSize: 11, color: '#94A3B8', fontFamily: 'var(--font-mono)', letterSpacing: '0.10em', fontWeight: 600 }}>{tr('vis.totalTarget')}</span>
+                  </div>
+                  <div style={{ fontSize: 20, fontWeight: 700, color: '#F59E0B', fontFamily: 'var(--font-mono)', marginTop: 3 }}>
+                    {totalTarget.toLocaleString()}
+                  </div>
+                </div>
+
+                {/* Accuracy */}
+                <div style={{ padding: '10px 12px', borderRight: '1px solid rgba(255,255,255,0.06)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke={accuracyColor} strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/>
+                    </svg>
+                    <span style={{ fontSize: 11, color: '#94A3B8', fontFamily: 'var(--font-mono)', letterSpacing: '0.10em', fontWeight: 600 }}>{tr('vis.accuracy')}</span>
+                  </div>
+                  <div style={{ fontSize: 20, fontWeight: 700, color: accuracyColor, fontFamily: 'var(--font-mono)', marginTop: 3 }}>
+                    {accuracyPct.toFixed(1)}%
+                  </div>
+                </div>
+
+                {/* Working Hours */}
+                <div style={{ padding: '10px 12px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#8B5CF6" strokeWidth="1.7" strokeLinecap="round">
+                      <circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 15"/>
+                    </svg>
+                    <span style={{ fontSize: 11, color: '#94A3B8', fontFamily: 'var(--font-mono)', letterSpacing: '0.10em', fontWeight: 600 }}>{tr('vis.workingHours')}</span>
+                  </div>
+                  <div style={{ fontSize: 20, fontWeight: 700, color: '#8B5CF6', fontFamily: 'var(--font-mono)', marginTop: 3 }}>
+                    {workingHourly.filter(v => v > 0).length} / {planHours}
+                  </div>
+                </div>
+              </div>
+            )
+          })()}
         </div>
 
         <div className="glass" style={{ padding: 16 }}>
           <div className="eyebrow" style={{ marginBottom: 8 }}>{tr('vis.lineThroughput')}</div>
           <BarChartJS
-            labels={statsLines.map(d => d.Line.slice(-4))}
+            labels={statsLines.map(d => (d as any).DepName || d.Line)}
             values={statsLines.map(d => d.count)}
-            height={180}
+            height={275}
             label="Scans"
           />
         </div>
@@ -582,7 +733,7 @@ function ViewBad({ filters, onRowClick, lang }: {
   const lineErrors = useMemo(() =>
     ngStats.byLine
       .filter(d => d.Line != null && d.Line !== '')
-      .map(d => ({ label: d.Line as string, value: d.count }))
+      .map(d => ({ label: ((d as any).DepName || d.Line) as string, value: d.count }))
   , [ngStats.byLine])
 
   const tr = (k: string) => translate(lang, k)
@@ -615,9 +766,9 @@ function ViewBad({ filters, onRowClick, lang }: {
   }, [records])
 
   const hourlyErrors = useMemo(() => {
-    const arr = Array<number>(24).fill(0)
-    ngStats.hourly.forEach(h => { arr[h.hour] = h.count })
-    return arr
+    return GOOD_INTERVALS.map(i =>
+      ngStats.hourly.find(h => h.hour === i.hour)?.count ?? 0
+    )
   }, [ngStats.hourly])
 
   const ERROR_TYPE_COLORS: Record<string, string> = {
@@ -729,13 +880,21 @@ function ViewBad({ filters, onRowClick, lang }: {
           <div className="glass" style={{ padding: 16 }}>
             <div className="row" style={{ marginBottom: 6 }}>
               <div className="eyebrow">{tr('vis.hourlyErrTrend')}</div>
-              {hourlyErrors.some(v => v > 0) && (
-                <span style={{ fontSize: 12, color: 'var(--t3)', fontFamily: 'var(--font-mono)' }}>
-                  {tr('vis.peak')} {hourlyErrors.indexOf(Math.max(...hourlyErrors))}h · {Math.max(...hourlyErrors)} {tr('vis.errors')}
-                </span>
-              )}
+              {hourlyErrors.some(v => v > 0) && (() => {
+                const peakErrIdx = hourlyErrors.indexOf(Math.max(...hourlyErrors))
+                return (
+                  <span style={{ fontSize: 12, color: 'var(--t3)', fontFamily: 'var(--font-mono)' }}>
+                    {tr('vis.peak')} {GOOD_INTERVALS[peakErrIdx]?.label ?? ''} · {Math.max(...hourlyErrors)} {tr('vis.errors')}
+                  </span>
+                )
+              })()}
             </div>
-            <Sparkline data={hourlyErrors} height={72}/>
+            <Sparkline
+              data={hourlyErrors}
+              height={72}
+              labels={GOOD_INTERVALS.map(i => i.label)}
+              hoverLabels={GOOD_INTERVALS.map(i => `${i.label} – ${i.hour + 1}h30`)}
+            />
           </div>
         </div>
       </div>
@@ -778,7 +937,7 @@ function AllTable({ records, onRowClick, pager }: { records: AllRecord[]; onRowC
               <tr key={r.id + r.Result} onClick={() => onRowClick(r)} style={{ cursor: 'pointer' }}>
                 <td><ShoeImg ip={r.IP4_Address} filename={r.ShoeImage} ry={r.RY}/></td>
                 <td className="mono dim" style={{ fontSize: 11.5 }}>{r.DateScan}</td>
-                <td><span className="chip">{r.Line}</span></td>
+                <td><span className="chip">{(r as any).DepName || r.Line}</span></td>
                 <td className="mono" style={{ fontWeight: 600 }}>{r.RY}</td>
                 <td className="mono">{r.Size}</td>
                 <td className="mono">{r.PO}</td>
@@ -808,31 +967,20 @@ interface TimeInterval {
 }
 
 const ALL_INTERVALS: TimeInterval[] = [
-  { hour: 7, minute: 30, label: '7h30' },
-  { hour: 8, minute: 0, label: '8h00' },
-  { hour: 8, minute: 30, label: '8h30' },
-  { hour: 9, minute: 0, label: '9h00' },
+  { hour: 7,  minute: 30, label: '7h30'  },
+  { hour: 8,  minute: 30, label: '8h30'  },
+  { hour: 9,  minute: 30, label: '9h30'  },
   { hour: 10, minute: 30, label: '10h30' },
-  { hour: 11, minute: 0, label: '11h00' },
   { hour: 11, minute: 30, label: '11h30' },
-  { hour: 12, minute: 0, label: '12h00' },
   { hour: 12, minute: 30, label: '12h30' },
-  { hour: 13, minute: 0, label: '13h00' },
   { hour: 13, minute: 30, label: '13h30' },
-  { hour: 14, minute: 0, label: '14h00' },
   { hour: 14, minute: 30, label: '14h30' },
-  { hour: 15, minute: 0, label: '15h00' },
   { hour: 15, minute: 30, label: '15h30' },
   { hour: 16, minute: 30, label: '16h30' },
-  { hour: 17, minute: 0, label: '17h00' },
   { hour: 17, minute: 30, label: '17h30' },
-  { hour: 18, minute: 0, label: '18h00' },
   { hour: 18, minute: 30, label: '18h30' },
-  { hour: 19, minute: 0, label: '19h00' },
   { hour: 19, minute: 30, label: '19h30' },
-  { hour: 20, minute: 0, label: '20h00' },
   { hour: 20, minute: 30, label: '20h30' },
-  { hour: 21, minute: 0, label: '21h00' }
 ]
 
 const ALL_INTERVAL_LABELS = ALL_INTERVALS.map(i => i.label)
@@ -851,6 +999,7 @@ function ViewAll({ goodTotal, badTotal, filters, onRowClick, lang }: {
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
   const [page, setPage] = useState(1)
   const [allStats, setAllStats] = useState<AllStats | null>(null)
+  const [allStatsLoading, setAllStatsLoading] = useState(false)
   const [hovLine, setHovLine] = useState<number | null>(null)
   const mountedA = useRef(false)
   const pageMountedA = useRef(false)
@@ -887,8 +1036,10 @@ function ViewAll({ goodTotal, badTotal, filters, onRowClick, lang }: {
   }, [filters.trigger])
 
   useEffect(() => {
+    setAllStatsLoading(true)
     fetchAllStats({ factory: filters.factory, dateFrom: filters.dateFrom, dateTo: filters.dateTo, line: filters.line || undefined, deviceType: filters.device || undefined, ry: filters.ry || undefined } as any)
-      .then(setAllStats).catch(console.error)
+      .then(data => { setAllStats(data); setAllStatsLoading(false) })
+      .catch(err => { console.error(err); setAllStatsLoading(false) })
   }, [filters.factory, filters.dateFrom, filters.dateTo, filters.line, filters.device, filters.trigger])
 
   const all = goodTotal + badTotal
@@ -899,10 +1050,10 @@ function ViewAll({ goodTotal, badTotal, filters, onRowClick, lang }: {
 
   const workingHourly = useMemo(() => {
     if (!allStats) return { good: Array(ALL_INTERVALS.length).fill(0) as number[], bad: Array(ALL_INTERVALS.length).fill(0) as number[] }
-    const hMap = new Map(allStats.hourly.map(h => [`${h.hour}:${h.minute}`, h]))
+    const hMap = new Map(allStats.hourly.map(h => [h.hour, h]))
     return {
-      good: ALL_INTERVALS.map(i => hMap.get(`${i.hour}:${i.minute}`)?.goodCount ?? 0),
-      bad:  ALL_INTERVALS.map(i => hMap.get(`${i.hour}:${i.minute}`)?.badCount  ?? 0),
+      good: ALL_INTERVALS.map(i => hMap.get(i.hour)?.goodCount ?? 0),
+      bad:  ALL_INTERVALS.map(i => hMap.get(i.hour)?.badCount  ?? 0),
     }
   }, [allStats])
 
@@ -911,7 +1062,7 @@ function ViewAll({ goodTotal, badTotal, filters, onRowClick, lang }: {
     const d2 = new Date(filters.dateTo)
     const diffTime = Math.abs(d2.getTime() - d1.getTime())
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1
-    const totalWorkingHours = diffDays * (ALL_INTERVALS.length / 2)
+    const totalWorkingHours = diffDays * ALL_INTERVALS.length
     return {
       avgHourly: Math.round(all / totalWorkingHours),
     }
@@ -980,7 +1131,17 @@ function ViewAll({ goodTotal, badTotal, filters, onRowClick, lang }: {
             </div>
             <span className="live-pip">LIVE</span>
           </div>
-          <div style={{ display:'flex', flexDirection:'column', gap:8, position:'relative' }}>
+          <div style={{ display:'flex', flexDirection:'column', gap:8, position:'relative', minHeight: 80 }}>
+            {allStatsLoading && (
+              <div style={{ position:'absolute', inset:0, background:'rgba(10,14,39,0.45)', zIndex:2, borderRadius:6, display:'flex', alignItems:'center', justifyContent:'center', pointerEvents:'none' }}>
+                <svg width="40" height="40" viewBox="0 0 24 24">
+                  <circle cx="12" cy="12" r="9" fill="none" stroke="rgba(255,255,255,0.10)" strokeWidth="2"/>
+                  <path d="M12 3a9 9 0 0 1 9 9" fill="none" stroke="#818CF8" strokeWidth="2" strokeLinecap="round">
+                    <animateTransform attributeName="transform" type="rotate" from="0 12 12" to="360 12 12" dur="0.7s" repeatCount="indefinite"/>
+                  </path>
+                </svg>
+              </div>
+            )}
             {statsByLine.slice(0, 8).map((row, i) => {
               const pct = (row.count / maxLine) * 100
               const isHov = hovLine === i
@@ -990,7 +1151,7 @@ function ViewAll({ goodTotal, badTotal, filters, onRowClick, lang }: {
                 <div key={i} style={{ display:'flex', alignItems:'center', gap:9 }}
                   onMouseEnter={() => setHovLine(i)} onMouseLeave={() => setHovLine(null)}>
                   <div style={{ width:36, fontSize:11, fontFamily:'var(--font-mono)', color: isHov ? '#E2E8F0' : '#64748B', textAlign:'right', flexShrink:0, transition:'color 120ms' }}>
-                    {row.Line.slice(-4)}
+                    {(row as any).DepName || row.Line}
                   </div>
                   <div style={{ flex:1, height:22, background:'rgba(255,255,255,0.04)', borderRadius:5, overflow:'hidden' }}>
                     <div style={{ height:'100%', width:`${pct}%`, background:barColor, borderRadius:5,
@@ -1020,6 +1181,16 @@ function ViewAll({ goodTotal, badTotal, filters, onRowClick, lang }: {
             <span className="live-pip">LIVE</span>
           </div>
           <div style={{ position:'relative' }}>
+            {allStatsLoading && (
+              <div style={{ position:'absolute', inset:0, background:'rgba(10,14,39,0.45)', zIndex:2, borderRadius:6, display:'flex', alignItems:'center', justifyContent:'center', pointerEvents:'none' }}>
+                <svg width="40" height="40" viewBox="0 0 24 24">
+                  <circle cx="12" cy="12" r="9" fill="none" stroke="rgba(255,255,255,0.10)" strokeWidth="2"/>
+                  <path d="M12 3a9 9 0 0 1 9 9" fill="none" stroke="#34D399" strokeWidth="2" strokeLinecap="round">
+                    <animateTransform attributeName="transform" type="rotate" from="0 12 12" to="360 12 12" dur="0.7s" repeatCount="indefinite"/>
+                  </path>
+                </svg>
+              </div>
+            )}
             <AreaChart
               series={[
                 { label: tr('vis.good'), data: workingHourly.good, color:'#10B981', thick:true,  labels: ALL_INTERVAL_LABELS },
@@ -1051,7 +1222,7 @@ function DetailModal({ row, kind, onClose }: {
   const r = row as GoodRecord & NotGoodRecord & AllRecord
   const fields: [string, string][] = [
     ['Date / Time', r.DateScan],
-    ['Line (DEPT)',  r.Line],
+    ['Line (DEPT)',  (r as any).DepName || r.Line],
     ['RY',           r.RY],
     ['Size',         r.Size],
     ['PO',           r.PO],
@@ -1069,7 +1240,7 @@ function DetailModal({ row, kind, onClose }: {
             : <span className="badge bad">▲ NOT GOOD</span>}
           <div style={{ marginLeft: 12 }}>
             <div className="mono" style={{ fontWeight: 600 }}>{r.RY}</div>
-            <div className="dim mono" style={{ fontSize: 11.5 }}>{r.Line} · {r.DateScan}</div>
+            <div className="dim mono" style={{ fontSize: 11.5 }}>{(r as any).DepName || r.Line} · {r.DateScan}</div>
           </div>
           <button className="icon-btn ml-auto" onClick={onClose}><Icon.x/></button>
         </div>
@@ -1107,7 +1278,7 @@ export default function VisionReportPage({ openExport, lang, factory }: Props) {
   const [ry, setRy] = useState('')
   const [device, setDevice] = useState('')
   const [deviceTypes, setDeviceTypes] = useState<DeviceType[]>([])
-  const [lines, setLines] = useState<string[]>([])
+  const [lines, setLines] = useState<LineOption[]>([])
   const [appliedFilters, setAppliedFilters] = useState({ dateFrom: today, dateTo: today, line: '', ry: '', device: '', factory: factory.id, trigger: 0 })
   const [goodTotal, setGoodTotal] = useState(0)
   const [badTotal, setBadTotal] = useState(0)
@@ -1172,7 +1343,11 @@ export default function VisionReportPage({ openExport, lang, factory }: Props) {
         device={device} setDevice={setDevice}
         deviceTypes={deviceTypes}
         factory={factory.id}
-        onSearch={() => setAppliedFilters({ dateFrom, dateTo, line, ry, device, factory: factory.id, trigger: appliedFilters.trigger + 1 })}
+        onSearch={() => {
+          // Resolve DepName → Line ID nếu user chọn từ datalist
+          const resolvedLine = lines.find(l => l.label === line)?.value || line
+          setAppliedFilters({ dateFrom, dateTo, line: resolvedLine, ry, device, factory: factory.id, trigger: appliedFilters.trigger + 1 })
+        }}
         lang={lang}
       />
 

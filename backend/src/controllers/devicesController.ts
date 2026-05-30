@@ -54,13 +54,13 @@ export async function getDevices(req: Request, res: Response) {
     const factory = String(req.query.factory ?? 'lhg')
 
     const lhgDevices = [
-      { ip: '172.16.36.214', line: 'LHGG4G01', lastSeen: new Date().toISOString() },
-      { ip: '172.16.36.194', line: 'LHGG4G02', lastSeen: new Date().toISOString() },
-      { ip: '172.16.36.215', line: 'LHGG4G03', lastSeen: new Date().toISOString() },
-      { ip: '172.16.36.216', line: 'LHGG4G05', lastSeen: new Date().toISOString() },
-      { ip: '172.16.36.217', line: 'LHGG4G06', lastSeen: new Date().toISOString() },
-      { ip: '172.16.36.218', line: 'LHGG4G07', lastSeen: new Date().toISOString() },
-      { ip: '172.16.36.219', line: 'LHGG4G08', lastSeen: new Date().toISOString() },
+      { ip: '172.16.36.214', line: 'G4G01', lastSeen: new Date().toISOString() },
+      { ip: '172.16.36.194', line: 'G4G02', lastSeen: new Date().toISOString() },
+      { ip: '172.16.36.215', line: 'G4G03', lastSeen: new Date().toISOString() },
+      { ip: '172.16.36.216', line: 'G4G05', lastSeen: new Date().toISOString() },
+      { ip: '172.16.36.217', line: 'G4G06', lastSeen: new Date().toISOString() },
+      { ip: '172.16.36.218', line: 'G4G07', lastSeen: new Date().toISOString() },
+      { ip: '172.16.36.219', line: 'G4G08', lastSeen: new Date().toISOString() },
     ]
 
     const lvlDevices = [
